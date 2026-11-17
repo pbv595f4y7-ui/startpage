@@ -28,8 +28,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 #toolbar .danger{color:var(--danger)}
 #toolbar .danger:hover{border-color:var(--danger);color:var(--danger)}
 #cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:start}
-@media (max-width:920px){#cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:520px){#cols{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:920px){#cols{grid-template-columns:minmax(0,1fr)}}
 .col h2{margin:0 0 12px;padding:0 2px;font-size:1.05rem;line-height:1.4;min-height:1.47rem;font-weight:600}
 .col .title-in{width:100%;margin:0 0 12px;padding:8px 10px;font:inherit;font-weight:600;color:var(--ink);background:transparent;border:1px dashed var(--line);border-radius:8px}
 .col .title-in:focus{border-color:var(--accent);outline:none}
@@ -482,6 +481,13 @@ $('syncCloseBtn').onclick = () => $('syncDlg').close();
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && syncHandle && syncReady && !editing && !$('dlg').open) syncPull();
 });
+
+// Externe Änderungen der Sync-Datei spätestens nach 5 Sekunden übernehmen.
+setInterval(() => {
+  if (document.visibilityState === 'visible' && syncHandle && syncReady && !editing && !$('dlg').open && !$('syncDlg').open) {
+    syncPull();
+  }
+}, 5000);
 
 (async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); })();
 </script>
