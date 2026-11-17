@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Startseite</title>
+<style>
+:root{--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:16px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif}
+main{max-width:1240px;margin:0 auto;padding:7vh 24px 48px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:36px}
+h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
+#date{color:var(--muted);font-size:.95rem;margin-top:4px}
+button{font:inherit;color:inherit;cursor:pointer}
+.link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
+.link-btn:hover,.link-btn[aria-pressed=true]{color:var(--ink);border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#toolbar{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:-12px 0 24px}
+#toolbar.show{display:flex}
+#toolbar .hint{color:var(--muted);font-size:.88rem;margin-left:auto}
+#toolbar .danger{color:var(--danger)}
+#toolbar .danger:hover{border-color:var(--danger);color:var(--danger)}
+#cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:start}
+@media (max-width:920px){#cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){#cols{grid-template-columns:minmax(0,1fr)}}
+.col h2{margin:0 0 12px;padding:0 2px;font-size:1.05rem;line-height:1.4;min-height:1.47rem;font-weight:600}
+.col .title-in{width:100%;margin:0 0 12px;padding:8px 10px;font:inherit;font-weight:600;color:var(--ink);background:transparent;border:1px dashed var(--line);border-radius:8px}
+.col .title-in:focus{border-color:var(--accent);outline:none}
+.list{min-height:8px}
+#cols.editing{align-items:stretch}
+.col.over-col{outline:2px dashed var(--accent);outline-offset:8px;border-radius:12px}
+.tile,.add{margin-bottom:10px}
+.tile{position:relative}
+.tile a,.add{display:flex;align-items:center;gap:14px;height:56px;padding:0 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink);transition:transform .12s,border-color .12s}
+.tile a:hover,.add:hover{transform:translateY(-1px);border-color:var(--accent)}
+.ico{flex:none;width:36px;height:36px;display:grid;place-items:center;font-weight:600;color:var(--accent)}
+.ico.letter{border-radius:8px;background:var(--bg)}
+.ico img{width:34px;height:34px;object-fit:contain}
+.name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add{border-style:dashed;background:transparent;color:var(--muted);width:100%;font-size:.95rem}
+.add b{flex:none;width:34px;font-size:1.5rem;font-weight:400;line-height:1;text-align:center}
+.tools{display:none;position:absolute;top:-8px;right:-6px;gap:4px}
+.editing .tools{display:flex}
+.tools button{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:.8rem;line-height:1}
+.tools .del{color:var(--danger)}
+.editing .tile a{pointer-events:none}
+.editing .tile{cursor:grab}
+.tile.dragging{opacity:.4}
+.tile.over a{border-color:var(--accent);border-style:dashed}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(380px,92vw)}
+dialog::backdrop{background:rgba(10,15,20,.5)}
+dialog h2{margin:0 0 16px;font-size:1.15rem}
+label{display:block;font-size:.88rem;color:var(--muted);margin-bottom:12px}
+label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.row{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.primary{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px}
+@media (prefers-color-scheme:dark){.primary{color:#0e1419}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 id="greet">Hallo</h1>
+      <div id="date"></div>
+    </div>
+    <button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button>
+  </header>
+  <div id="toolbar">
+    <button class="link-btn" id="exportBtn">Exportieren</button>
+    <button class="link-btn" id="importBtn">Importieren</button>
+    <button class="link-btn danger" id="clearBtn">Alle Einträge löschen</button>
+    <span class="hint">Einträge ziehen, um sie zu sortieren – auch in andere Spalten</span>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </div>
+  <div id="cols"></div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h2 id="dlgTitle">Favorit hinzufügen</h2>
+    <label>Name<input id="fName" required maxlength="40" autocomplete="off"></label>
+    <label>Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off"></label>
+    <div class="row">
+      <button type="button" class="link-btn" id="cancel">Abbrechen</button>
+      <button class="primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
+const $ = id => document.getElementById(id);
+const emptyCols = () => Array.from({length: NCOLS}, () => ({title: '', items: []}));
+
+function normalize(u){
+  u = String(u).trim();
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  try { return new URL(u).href; } catch(e){ return null; }
+}
+function cleanItems(list){
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach(x => {
+    if (x && typeof x.name === 'string' && typeof x.url === 'string') {
+      const u = normalize(x.url);
+      if (u) out.push({name: x.name.trim().slice(0, 40) || u, url: u});
+    }
+  });
+  return out;
+}
+function fromData(v){
+  const cols = emptyCols();
+  if (Array.isArray(v)) { cols[0].items = cleanItems(v); return cols; }
+  if (v && Array.isArray(v.columns)) {
+    v.columns.slice(0, NCOLS).forEach((c, i) => {
+      cols[i].title = c && typeof c.title === 'string' ? c.title.trim().slice(0, 40) : '';
+      cols[i].items = cleanItems(c && c.items);
+    });
+    return cols;
+  }
+  return null;
+}
+function load(){
+  try { const c = fromData(JSON.parse(localStorage.getItem(KEY))); if (c) return c; } catch(e){}
+  try { const c = fromData(JSON.parse(localStorage.getItem(OLD_KEY))); if (c) return c; } catch(e){}
+  const c = emptyCols();
+  c[0].items = [
+    {name:'Wikipedia', url:'https://de.wikipedia.org'},
+    {name:'OpenStreetMap', url:'https://www.openstreetmap.org'},
+    {name:'Claude', url:'https://claude.ai'}
+  ];
+  return c;
+}
+function persist(){ try { localStorage.setItem(KEY, JSON.stringify({columns: cols})); } catch(e){} }
+
+let cols = load(), editing = false, editCol = 0, editIdx = -1, drag = null;
+
+function render(){
+  const root = $('cols');
+  root.className = editing ? 'editing' : '';
+  root.innerHTML = '';
+  cols.forEach((col, c) => {
+    const el = document.createElement('section'); el.className = 'col';
+    if (editing) {
+      const inp = document.createElement('input');
+      inp.className = 'title-in'; inp.value = col.title; inp.maxLength = 40;
+      inp.placeholder = 'Überschrift (optional)';
+      inp.setAttribute('aria-label', 'Überschrift Spalte ' + (c + 1));
+      inp.oninput = () => { col.title = inp.value.trim(); persist(); };
+      el.appendChild(inp);
+    } else {
+      const h = document.createElement('h2'); h.textContent = col.title; el.appendChild(h);
+    }
+    const list = document.createElement('div'); list.className = 'list';
+    if (editing) {
+      el.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('over-col'); });
+      el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over-col'); });
+      el.addEventListener('drop', e => { e.preventDefault(); moveTo(c, cols[c].items.length); });
+    }
+    col.items.forEach((it, i) => list.appendChild(makeTile(c, i, it)));
+    let add = null;
+    if (editing) {
+      add = document.createElement('button'); add.className = 'add';
+      add.innerHTML = '<b>+</b><span>Favorit hinzufügen</span>';
+      add.onclick = () => openDlg(c, -1);
+    }
+    if (add && !col.items.length) el.append(add, list); else el.append(list, ...(add ? [add] : []));
+    root.appendChild(el);
+  });
+}
+
+const SERVICES = [
+  {re: /home-?assistant|nabu\.casa|(^|\.)hass(\.|$)/i, ports: ['8123'], site: 'home-assistant.io',
+   paths: ['/static/icons/favicon-192x192.png', '/static/icons/favicon.ico']},
+  {re: /jellyfin/i, ports: ['8096', '8920'], site: 'jellyfin.org',
+   paths: ['/web/favicon.png', '/web/touchicon.png', '/web/favicon.ico']},
+  {re: /audio-?book-?shelf/i, ports: ['13378'], site: 'audiobookshelf.org',
+   paths: ['/icon.svg', '/Logo.png', '/favicon.ico']}
+];
+function matchService(it){
+  const u = new URL(it.url);
+  const nameKey = it.name.replace(/\s+/g, '');
+  return SERVICES.find(s => s.ports.includes(u.port) || s.re.test(u.hostname) || s.re.test(nameKey)) || null;
+}
+function iconSources(it, host){
+  const list = [], svc = matchService(it);
+  if (svc) {
+    const o = new URL(it.url).origin;
+    svc.paths.forEach(p => list.push(o + p));
+    list.push('https://www.google.com/s2/favicons?sz=64&domain=' + svc.site);
+  }
+  list.push('https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host));
+  return list;
+}
+
+function makeTile(c, i, it){
+  const host = new URL(it.url).hostname;
+  const tile = document.createElement('div'); tile.className = 'tile';
+  if (editing) {
+    tile.draggable = true;
+    tile.addEventListener('dragstart', e => { drag = {c, i}; tile.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.name); });
+    tile.addEventListener('dragend', () => { drag = null; render(); });
+    tile.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; tile.classList.add('over'); });
+    tile.addEventListener('dragleave', () => tile.classList.remove('over'));
+    tile.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); moveTo(c, i); });
+  }
+  const a = document.createElement('a'); a.href = it.url;
+  a.target = '_blank'; a.rel = 'noopener noreferrer';
+  const ico = document.createElement('span'); ico.className = 'ico';
+  const img = new Image(); img.alt = '';
+  const srcs = iconSources(it, host);
+  let k = 0;
+  img.onerror = () => {
+    if (++k < srcs.length) img.src = srcs[k];
+    else { ico.textContent = it.name.charAt(0).toUpperCase(); ico.classList.add('letter'); }
+  };
+  img.src = srcs[0];
+  ico.appendChild(img);
+  const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
+  a.append(ico, nm);
+  const tools = document.createElement('div'); tools.className = 'tools';
+  const ed = document.createElement('button'); ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', it.name + ' ändern');
+  ed.onclick = () => openDlg(c, i);
+  const del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', it.name + ' löschen');
+  del.onclick = () => { cols[c].items.splice(i, 1); persist(); render(); };
+  tools.append(ed, del);
+  tile.append(a, tools);
+  return tile;
+}
+
+function moveTo(c, i){
+  if (!drag) return;
+  const [moved] = cols[drag.c].items.splice(drag.i, 1);
+  cols[c].items.splice(Math.min(i, cols[c].items.length), 0, moved);
+  drag = null; persist(); render();
+}
+
+const dlg = $('dlg');
+function openDlg(c, i){
+  editCol = c; editIdx = i;
+  $('dlgTitle').textContent = i < 0 ? 'Favorit hinzufügen' : 'Favorit ändern';
+  $('fName').value = i < 0 ? '' : cols[c].items[i].name;
+  $('fUrl').value = i < 0 ? '' : cols[c].items[i].url;
+  dlg.showModal();
+  $('fName').focus();
+}
+$('cancel').onclick = () => dlg.close();
+$('fUrl').addEventListener('input', e => e.target.setCustomValidity(''));
+$('form').addEventListener('submit', e => {
+  const url = normalize($('fUrl').value);
+  if (!url) { e.preventDefault(); $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.'); $('fUrl').reportValidity(); return; }
+  const entry = {name: $('fName').value.trim(), url};
+  if (editIdx < 0) cols[editCol].items.push(entry); else cols[editCol].items[editIdx] = entry;
+  persist(); render();
+});
+
+$('editBtn').onclick = () => {
+  editing = !editing;
+  $('editBtn').setAttribute('aria-pressed', editing);
+  $('editBtn').textContent = editing ? 'Fertig' : 'Bearbeiten';
+  $('toolbar').classList.toggle('show', editing);
+  render();
+};
+
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify({version: 2, columns: cols}, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'favoriten-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = () => {
+  const f = $('importFile').files[0]; $('importFile').value = '';
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let data = null;
+    try { data = fromData(JSON.parse(r.result)); } catch(e){}
+    const count = data ? data.reduce((n, c) => n + c.items.length, 0) : 0;
+    if (!count) { alert('Die Datei enthält keine gültigen Favoriten.'); return; }
+    const have = cols.some(c => c.items.length);
+    const replace = have ? confirm(count + ' Einträge gefunden.\n\nOK: bestehende Favoriten ersetzen\nAbbrechen: zu den bestehenden hinzufügen') : true;
+    if (replace) cols = data;
+    else data.forEach((c, i) => { cols[i].items.push(...c.items); if (!cols[i].title) cols[i].title = c.title; });
+    persist(); render();
+  };
+  r.readAsText(f);
+};
+$('clearBtn').onclick = () => {
+  const n = cols.reduce((s, c) => s + c.items.length, 0);
+  if (n && confirm('Wirklich alle ' + n + ' Einträge löschen? Die Überschriften bleiben erhalten.')) {
+    cols.forEach(c => c.items = []); persist(); render();
+  }
+};
+
+(function header(){
+  const h = new Date().getHours();
+  $('greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend';
+  $('date').textContent = new Date().toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+})();
+render();
+</script>
+</body>
+</html>
