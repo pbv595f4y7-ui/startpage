@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Startseite</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2212%22 fill=%22%231f6f8b%22/%3E%3Ctext x=%2232%22 y=%2246%22 text-anchor=%22middle%22 font-family=%22Arial%2Csans-serif%22 font-size=%2246%22 fill=%22white%22%3E%F0%9D%8D%8A%3C/text%3E%3C/svg%3E">
 <style>
 :root{--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;color-scheme:dark}}
@@ -16,6 +17,9 @@ h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
 #date{color:var(--muted);font-size:.95rem;margin-top:4px}
 button{font:inherit;color:inherit;cursor:pointer}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
+#startupFileBtn .startup-status.active{color:#16803a;font-weight:700}
+#startupFileBtn .startup-status.inactive{color:var(--danger);font-weight:700}
+
 .link-btn:hover,.link-btn[aria-pressed=true]{color:var(--ink);border-color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #toolbar{display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:-12px 0 24px}
@@ -73,6 +77,7 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
     <button class="link-btn" id="importBtn">Importieren</button>
+    <button class="link-btn" id="startupFileBtn">Startdatei</button>
     <button class="link-btn danger" id="clearBtn">Alle Einträge löschen</button>
     <span class="hint">Einträge ziehen, um sie zu sortieren – auch in andere Spalten</span>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -92,8 +97,30 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   </form>
 </dialog>
 
+<dialog id="startupDlg">
+  <form method="dialog" id="startupForm">
+    <h2>Startdatei</h2>
+    <label>Datei
+      <input type="text" id="startupFileName" value="Keine Datei ausgewählt" readonly>
+    </label>
+    <div class="row">
+      <button type="button" class="link-btn" id="startupChooseBtn">Datei auswählen</button>
+      <button type="button" class="link-btn danger" id="startupRemoveBtn">Startdatei entfernen</button>
+    </div>
+    <label style="display:flex;flex-direction:row;align-items:center;gap:.55rem;margin-top:1rem">
+      <input type="checkbox" id="startupEnabled" style="width:auto"> Beim Start automatisch laden
+    </label>
+    <div class="row">
+      <button type="button" class="link-btn" id="startupCancelBtn">Abbrechen</button>
+      <button type="button" class="primary" id="startupSaveBtn">Speichern</button>
+    </div>
+    <input type="file" id="startupPicker" accept=".json,application/json" hidden>
+  </form>
+</dialog>
+
 <script>
 const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
+const STARTUP_DB = 'startseite-startdatei-v1', STARTUP_STORE = 'settings';
 const $ = id => document.getElementById(id);
 const emptyCols = () => Array.from({length: NCOLS}, () => ({title: '', items: []}));
 
@@ -137,6 +164,65 @@ function load(){
 }
 function persist(){ try { localStorage.setItem(KEY, JSON.stringify({columns: cols})); } catch(e){} }
 
+
+function startupDb(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(STARTUP_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STARTUP_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function startupGet(key){
+  const db = await startupDb();
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(STARTUP_STORE, 'readonly');
+    const req = tx.objectStore(STARTUP_STORE).get(key);
+    req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  });
+}
+async function startupSet(key, value){
+  const db = await startupDb();
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(STARTUP_STORE, 'readwrite');
+    tx.objectStore(STARTUP_STORE).put(value, key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+let pendingStartupFile = undefined;
+async function openStartupDialog(){
+  let file=null, enabled=false;
+  try { file=await startupGet('file'); enabled=!!(await startupGet('enabled')); } catch(e){}
+  pendingStartupFile=file;
+  $('startupFileName').value=file ? file.name : 'Keine Datei ausgewählt';
+  $('startupEnabled').checked=enabled;
+  $('startupEnabled').disabled=!file;
+  $('startupRemoveBtn').disabled=!file;
+  $('startupDlg').showModal();
+}
+async function validateStartupFile(file){
+  let data=null; try { data=fromData(JSON.parse(await file.text())); } catch(e){}
+  return !!(data && data.some(c=>c.items.length));
+}
+function setStartupButtonState(active, file){
+  const btn=$('startupFileBtn');
+  const isActive = !!(active && file);
+  btn.replaceChildren(document.createTextNode('Startdatei: '));
+  const status = document.createElement('span');
+  status.className = 'startup-status ' + (isActive ? 'active' : 'inactive');
+  status.textContent = isActive ? 'aktiv' : 'inaktiv';
+  btn.appendChild(status);
+  btn.title = isActive ? ('Wird beim Start geladen: ' + file.name) : 'Keine Startdatei wird automatisch geladen';
+}
+async function loadStartupFile(){
+  try {
+    if (!(await startupGet('enabled'))) { setStartupButtonState(false, null); return false; }
+    const file=await startupGet('file'); if(!file) { setStartupButtonState(false, null); return false; }
+    const data=fromData(JSON.parse(await file.text()));
+    if(!data || !data.some(c=>c.items.length)) { setStartupButtonState(false, null); return false; }
+    cols=data; persist(); setStartupButtonState(true, file); return true;
+  } catch(e){ setStartupButtonState(false, null); return false; }
+}
 let cols = load(), editing = false, editCol = 0, editIdx = -1, drag = null;
 
 function render(){
@@ -275,6 +361,25 @@ $('exportBtn').onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $('importBtn').onclick = () => $('importFile').click();
+$('startupFileBtn').onclick = openStartupDialog;
+$('startupChooseBtn').onclick = () => $('startupPicker').click();
+$('startupPicker').onchange = async () => {
+  const file=$('startupPicker').files[0]; $('startupPicker').value='';
+  if(!file) return;
+  if(!(await validateStartupFile(file))){ alert('Die Datei enthält keine gültigen Favoriten.'); return; }
+  pendingStartupFile=file; $('startupFileName').value=file.name; $('startupEnabled').disabled=false; $('startupRemoveBtn').disabled=false;
+};
+$('startupRemoveBtn').onclick = () => { pendingStartupFile=null; $('startupFileName').value='Keine Datei ausgewählt'; $('startupEnabled').checked=false; $('startupEnabled').disabled=true; $('startupRemoveBtn').disabled=true; };
+$('startupCancelBtn').onclick = () => $('startupDlg').close();
+$('startupSaveBtn').onclick = async () => {
+  try {
+    if(pendingStartupFile===null){ await startupSet('file', null); await startupSet('enabled', false); }
+    else if(pendingStartupFile){ await startupSet('file', pendingStartupFile); await startupSet('enabled', $('startupEnabled').checked); }
+    const savedFile=await startupGet('file'); const savedEnabled=!!(await startupGet('enabled'));
+    setStartupButtonState(savedEnabled, savedFile);
+    $('startupDlg').close();
+  } catch(e){ alert('Die Startdatei-Einstellung konnte nicht gespeichert werden.'); }
+};
 $('importFile').onchange = () => {
   const f = $('importFile').files[0]; $('importFile').value = '';
   if (!f) return;
@@ -304,7 +409,7 @@ $('clearBtn').onclick = () => {
   $('greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend';
   $('date').textContent = new Date().toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 })();
-render();
+(async () => { await loadStartupFile(); render(); })();
 </script>
 </body>
 </html>
