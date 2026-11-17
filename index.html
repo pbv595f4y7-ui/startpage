@@ -17,8 +17,8 @@ h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
 #date{color:var(--muted);font-size:.95rem;margin-top:4px}
 button{font:inherit;color:inherit;cursor:pointer}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
-#startupFileBtn .startup-status.active{color:#16803a;font-weight:700}
-#startupFileBtn .startup-status.inactive{color:var(--danger);font-weight:700}
+#syncBtn .status.active{color:#16803a;font-weight:700}
+#syncBtn .status.inactive{color:var(--danger);font-weight:700}
 
 .link-btn:hover,.link-btn[aria-pressed=true]{color:var(--ink);border-color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -77,7 +77,7 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
     <button class="link-btn" id="importBtn">Importieren</button>
-    <button class="link-btn" id="startupFileBtn">Startdatei</button>
+    <button class="link-btn" id="syncBtn">Sync-Datei</button>
     <button class="link-btn danger" id="clearBtn">Alle Einträge löschen</button>
     <span class="hint">Einträge ziehen, um sie zu sortieren – auch in andere Spalten</span>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -97,30 +97,27 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   </form>
 </dialog>
 
-<dialog id="startupDlg">
-  <form method="dialog" id="startupForm">
-    <h2>Startdatei</h2>
+<dialog id="syncDlg">
+  <form method="dialog">
+    <h2>Sync-Datei</h2>
+    <p id="syncInfo" style="margin:0 0 14px;color:var(--muted);font-size:.9rem"></p>
     <label>Datei
-      <input type="text" id="startupFileName" value="Keine Datei ausgewählt" readonly>
+      <input type="text" id="syncFileName" readonly>
     </label>
-    <div class="row">
-      <button type="button" class="link-btn" id="startupChooseBtn">Datei auswählen</button>
-      <button type="button" class="link-btn danger" id="startupRemoveBtn">Startdatei entfernen</button>
+    <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+      <button type="button" class="link-btn" id="syncChooseBtn">Vorhandene Datei wählen…</button>
+      <button type="button" class="link-btn" id="syncCreateBtn">Neue Datei anlegen…</button>
     </div>
-    <label style="display:flex;flex-direction:row;align-items:center;gap:.55rem;margin-top:1rem">
-      <input type="checkbox" id="startupEnabled" style="width:auto"> Beim Start automatisch laden
-    </label>
     <div class="row">
-      <button type="button" class="link-btn" id="startupCancelBtn">Abbrechen</button>
-      <button type="button" class="primary" id="startupSaveBtn">Speichern</button>
+      <button type="button" class="link-btn danger" id="syncStopBtn">Synchronisierung beenden</button>
+      <button type="button" class="primary" id="syncCloseBtn">Schließen</button>
     </div>
-    <input type="file" id="startupPicker" accept=".json,application/json" hidden>
   </form>
 </dialog>
 
 <script>
 const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
-const STARTUP_DB = 'startseite-startdatei-v1', STARTUP_STORE = 'settings';
+const SETTINGS_DB = 'startseite-startdatei-v1', SETTINGS_STORE = 'settings';
 const $ = id => document.getElementById(id);
 const emptyCols = () => Array.from({length: NCOLS}, () => ({title: '', items: []}));
 
@@ -162,66 +159,41 @@ function load(){
   ];
   return c;
 }
-function persist(){ try { localStorage.setItem(KEY, JSON.stringify({columns: cols})); } catch(e){} }
+function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify({columns: cols})); } catch(e){} }
+function persist(){ saveLocal(); syncSchedule(); }
 
 
-function startupDb(){
+function settingsDb(){
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(STARTUP_DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STARTUP_STORE);
+    const req = indexedDB.open(SETTINGS_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(SETTINGS_STORE);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
-async function startupGet(key){
-  const db = await startupDb();
+async function settingsGet(key){
+  const db = await settingsDb();
   return await new Promise((resolve, reject) => {
-    const tx = db.transaction(STARTUP_STORE, 'readonly');
-    const req = tx.objectStore(STARTUP_STORE).get(key);
+    const tx = db.transaction(SETTINGS_STORE, 'readonly');
+    const req = tx.objectStore(SETTINGS_STORE).get(key);
     req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
   });
 }
-async function startupSet(key, value){
-  const db = await startupDb();
+async function settingsDel(key){
+  const db = await settingsDb();
   return await new Promise((resolve, reject) => {
-    const tx = db.transaction(STARTUP_STORE, 'readwrite');
-    tx.objectStore(STARTUP_STORE).put(value, key);
+    const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+    tx.objectStore(SETTINGS_STORE).delete(key);
     tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
   });
 }
-let pendingStartupFile = undefined;
-async function openStartupDialog(){
-  let file=null, enabled=false;
-  try { file=await startupGet('file'); enabled=!!(await startupGet('enabled')); } catch(e){}
-  pendingStartupFile=file;
-  $('startupFileName').value=file ? file.name : 'Keine Datei ausgewählt';
-  $('startupEnabled').checked=enabled;
-  $('startupEnabled').disabled=!file;
-  $('startupRemoveBtn').disabled=!file;
-  $('startupDlg').showModal();
-}
-async function validateStartupFile(file){
-  let data=null; try { data=fromData(JSON.parse(await file.text())); } catch(e){}
-  return !!(data && data.some(c=>c.items.length));
-}
-function setStartupButtonState(active, file){
-  const btn=$('startupFileBtn');
-  const isActive = !!(active && file);
-  btn.replaceChildren(document.createTextNode('Startdatei: '));
-  const status = document.createElement('span');
-  status.className = 'startup-status ' + (isActive ? 'active' : 'inactive');
-  status.textContent = isActive ? 'aktiv' : 'inaktiv';
-  btn.appendChild(status);
-  btn.title = isActive ? ('Wird beim Start geladen: ' + file.name) : 'Keine Startdatei wird automatisch geladen';
-}
-async function loadStartupFile(){
-  try {
-    if (!(await startupGet('enabled'))) { setStartupButtonState(false, null); return false; }
-    const file=await startupGet('file'); if(!file) { setStartupButtonState(false, null); return false; }
-    const data=fromData(JSON.parse(await file.text()));
-    if(!data || !data.some(c=>c.items.length)) { setStartupButtonState(false, null); return false; }
-    cols=data; persist(); setStartupButtonState(true, file); return true;
-  } catch(e){ setStartupButtonState(false, null); return false; }
+async function settingsSet(key, value){
+  const db = await settingsDb();
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+    tx.objectStore(SETTINGS_STORE).put(value, key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
 }
 let cols = load(), editing = false, editCol = 0, editIdx = -1, drag = null;
 
@@ -361,25 +333,6 @@ $('exportBtn').onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $('importBtn').onclick = () => $('importFile').click();
-$('startupFileBtn').onclick = openStartupDialog;
-$('startupChooseBtn').onclick = () => $('startupPicker').click();
-$('startupPicker').onchange = async () => {
-  const file=$('startupPicker').files[0]; $('startupPicker').value='';
-  if(!file) return;
-  if(!(await validateStartupFile(file))){ alert('Die Datei enthält keine gültigen Favoriten.'); return; }
-  pendingStartupFile=file; $('startupFileName').value=file.name; $('startupEnabled').disabled=false; $('startupRemoveBtn').disabled=false;
-};
-$('startupRemoveBtn').onclick = () => { pendingStartupFile=null; $('startupFileName').value='Keine Datei ausgewählt'; $('startupEnabled').checked=false; $('startupEnabled').disabled=true; $('startupRemoveBtn').disabled=true; };
-$('startupCancelBtn').onclick = () => $('startupDlg').close();
-$('startupSaveBtn').onclick = async () => {
-  try {
-    if(pendingStartupFile===null){ await startupSet('file', null); await startupSet('enabled', false); }
-    else if(pendingStartupFile){ await startupSet('file', pendingStartupFile); await startupSet('enabled', $('startupEnabled').checked); }
-    const savedFile=await startupGet('file'); const savedEnabled=!!(await startupGet('enabled'));
-    setStartupButtonState(savedEnabled, savedFile);
-    $('startupDlg').close();
-  } catch(e){ alert('Die Startdatei-Einstellung konnte nicht gespeichert werden.'); }
-};
 $('importFile').onchange = () => {
   const f = $('importFile').files[0]; $('importFile').value = '';
   if (!f) return;
@@ -409,7 +362,130 @@ $('clearBtn').onclick = () => {
   $('greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend';
   $('date').textContent = new Date().toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 })();
-(async () => { await loadStartupFile(); render(); })();
+/* ---- Optionale Sync-Datei (File System Access API, Chrome/Edge) ---- */
+const SYNC_SUPPORTED = 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
+const SYNC_TYPES = [{description: 'Favoriten (JSON)', accept: {'application/json': ['.json']}}];
+let syncHandle = null, syncReady = false, syncState = 'off', syncTimer = null, syncLast = '';
+const canon = data => JSON.stringify({version: 2, columns: data}, null, 2);
+const countItems = data => data.reduce((n, c) => n + c.items.length, 0);
+
+function setSyncState(state){
+  syncState = state;
+  const btn = $('syncBtn');
+  const map = {off: ['inaktiv', 'inactive'], active: ['aktiv', 'active'], perm: ['Zugriff erlauben', 'inactive'], error: ['Fehler', 'inactive']};
+  btn.replaceChildren(document.createTextNode('Sync-Datei: '));
+  const sp = document.createElement('span');
+  sp.className = 'status ' + map[state][1]; sp.textContent = map[state][0];
+  btn.appendChild(sp);
+  btn.title = syncHandle ? 'Datei: ' + syncHandle.name : 'Favoriten werden nur lokal in diesem Browser gespeichert';
+}
+async function syncGranted(){
+  try { return (await syncHandle.queryPermission({mode: 'readwrite'})) === 'granted'; } catch(e){ return false; }
+}
+// liefert Daten, null (leere Datei) oder 'invalid'
+async function syncRead(){
+  const text = await (await syncHandle.getFile()).text();
+  if (!text.trim()) return null;
+  let d = null; try { d = fromData(JSON.parse(text)); } catch(e){}
+  if (!d) return 'invalid';
+  return countItems(d) ? d : null;
+}
+async function syncWrite(){
+  if (!syncHandle || !syncReady) return;
+  if (!(await syncGranted())) { setSyncState('perm'); return; }
+  const json = canon(cols);
+  if (json === syncLast) { setSyncState('active'); return; }
+  try {
+    const w = await syncHandle.createWritable();
+    await w.write(json); await w.close();
+    syncLast = json; setSyncState('active');
+  } catch(e){ setSyncState('error'); }
+}
+function syncSchedule(){
+  if (!syncHandle || !syncReady) return;
+  clearTimeout(syncTimer); syncTimer = setTimeout(syncWrite, 400);
+}
+async function syncPull(){
+  if (!syncHandle) return;
+  if (!(await syncGranted())) { setSyncState('perm'); return; }
+  let r; try { r = await syncRead(); } catch(e){ setSyncState('error'); return; }
+  if (r === 'invalid') { setSyncState('error'); return; }
+  if (r === null) { syncReady = true; syncLast = ''; await syncWrite(); return; }
+  syncLast = canon(r);
+  if (syncLast !== canon(cols)) { cols = r; saveLocal(); render(); }
+  syncReady = true; setSyncState('active');
+}
+async function syncGrant(){
+  try { if ((await syncHandle.requestPermission({mode: 'readwrite'})) === 'granted') { await syncPull(); return; } } catch(e){}
+  setSyncState('perm');
+}
+function armPermissionClick(){
+  const h = e => {
+    if (e.target.closest && e.target.closest('a')) return;
+    document.removeEventListener('pointerdown', h, true);
+    syncGrant();
+  };
+  document.addEventListener('pointerdown', h, true);
+}
+async function syncInit(){
+  setSyncState('off');
+  if (!SYNC_SUPPORTED) return;
+  try { syncHandle = (await settingsGet('syncHandle')) || null; } catch(e){ syncHandle = null; }
+  if (!syncHandle) return;
+  if (await syncGranted()) await syncPull();
+  else { setSyncState('perm'); armPermissionClick(); }
+}
+function updateSyncDlg(){
+  $('syncFileName').value = syncHandle ? syncHandle.name : 'Keine Datei ausgewählt';
+  $('syncStopBtn').disabled = !syncHandle;
+  $('syncChooseBtn').disabled = $('syncCreateBtn').disabled = !SYNC_SUPPORTED;
+  $('syncInfo').textContent = !SYNC_SUPPORTED
+    ? 'Dieser Browser unterstützt den Dateizugriff nicht (nur Chrome und Edge). Die Favoriten bleiben lokal gespeichert; zum Übertragen nutze Export und Import.'
+    : syncHandle
+      ? 'Änderungen werden automatisch in diese Datei geschrieben und beim Start daraus gelesen. Liegt die Datei in einem Cloud-Ordner, gleicht sie sich zwischen deinen Geräten ab.'
+      : 'Ohne Sync-Datei bleiben die Favoriten nur lokal in diesem Browser gespeichert. Wähle eine JSON-Datei, am besten in einem Cloud-Ordner, um sie zwischen Browsern zu teilen.';
+}
+async function activateSync(h){
+  syncHandle = h;
+  try { await settingsSet('syncHandle', h); } catch(e){ alert('Die Sync-Datei konnte nicht gespeichert werden.'); }
+  syncReady = true; render(); await syncWrite(); updateSyncDlg();
+}
+async function syncChoose(){
+  let h; try { [h] = await showOpenFilePicker({types: SYNC_TYPES, multiple: false}); } catch(e){ return; }
+  let granted = false; try { granted = (await h.requestPermission({mode: 'readwrite'})) === 'granted'; } catch(e){}
+  if (!granted) { alert('Ohne Schreibzugriff kann die Datei nicht synchronisiert werden.'); return; }
+  const old = syncHandle; syncHandle = h;
+  let r; try { r = await syncRead(); } catch(e){ r = 'invalid'; }
+  if (r === 'invalid') { syncHandle = old; alert('Die Datei enthält keine gültigen Favoriten und wird nicht überschrieben.'); return; }
+  if (r) {
+    if (!confirm(countItems(r) + ' Einträge in der Datei gefunden.\n\nAktuelle Favoriten durch den Inhalt der Datei ersetzen und die Datei künftig synchron halten?')) { syncHandle = old; return; }
+    cols = r; saveLocal(); syncLast = canon(r);
+  } else syncLast = '';
+  await activateSync(h);
+}
+async function syncCreate(){
+  let h; try { h = await showSaveFilePicker({suggestedName: 'startseite-favoriten.json', types: SYNC_TYPES}); } catch(e){ return; }
+  let granted = false; try { granted = (await h.requestPermission({mode: 'readwrite'})) === 'granted'; } catch(e){}
+  if (!granted) return;
+  syncLast = ''; await activateSync(h);
+}
+$('syncBtn').onclick = () => {
+  if (syncState === 'perm' && syncHandle) { syncGrant(); return; }
+  updateSyncDlg(); $('syncDlg').showModal();
+};
+$('syncChooseBtn').onclick = syncChoose;
+$('syncCreateBtn').onclick = syncCreate;
+$('syncStopBtn').onclick = async () => {
+  syncHandle = null; syncReady = false; syncLast = ''; clearTimeout(syncTimer);
+  try { await settingsSet('syncHandle', null); } catch(e){}
+  setSyncState('off'); updateSyncDlg();
+};
+$('syncCloseBtn').onclick = () => $('syncDlg').close();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && syncHandle && syncReady && !editing && !$('dlg').open) syncPull();
+});
+
+(async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); })();
 </script>
 </body>
 </html>
