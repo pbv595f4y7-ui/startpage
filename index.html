@@ -101,6 +101,7 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   <form method="dialog">
     <h2>Sync-Datei</h2>
     <p id="syncInfo" style="margin:0 0 14px;color:var(--muted);font-size:.9rem"></p>
+    <p id="syncSafariNote" hidden style="margin:0 0 14px;padding:10px 12px;border-left:3px solid var(--accent);background:var(--bg);border-radius:6px;font-size:.9rem">Hinweis zu Safari: Safari erlaubt Webseiten keinen direkten Dateizugriff, daher funktioniert die Sync-Datei hier nicht. Deine Favoriten bleiben in diesem Browser lokal gespeichert. Zum Übertragen nutze Export und Import, zum Beispiel mit einer Datei im iCloud-Ordner.</p>
     <label>Datei
       <input type="text" id="syncFileName" readonly>
     </label>
@@ -363,6 +364,7 @@ $('clearBtn').onclick = () => {
   $('date').textContent = new Date().toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 })();
 /* ---- Optionale Sync-Datei (File System Access API, Chrome/Edge) ---- */
+const IS_SAFARI = /safari/i.test(navigator.userAgent) && !/chrome|chromium|crios|fxios|edg|opr|android/i.test(navigator.userAgent);
 const SYNC_SUPPORTED = 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
 const SYNC_TYPES = [{description: 'Favoriten (JSON)', accept: {'application/json': ['.json']}}];
 let syncHandle = null, syncReady = false, syncState = 'off', syncTimer = null, syncLast = '';
@@ -436,6 +438,8 @@ async function syncInit(){
   else { setSyncState('perm'); armPermissionClick(); }
 }
 function updateSyncDlg(){
+  $('syncSafariNote').hidden = !(IS_SAFARI && !SYNC_SUPPORTED);
+  $('syncInfo').hidden = IS_SAFARI && !SYNC_SUPPORTED;
   $('syncFileName').value = syncHandle ? syncHandle.name : 'Keine Datei ausgewählt';
   $('syncStopBtn').disabled = !syncHandle;
   $('syncChooseBtn').disabled = $('syncCreateBtn').disabled = !SYNC_SUPPORTED;
