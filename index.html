@@ -16,6 +16,8 @@ header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
 h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
 #date{color:var(--muted);font-size:.95rem;margin-top:4px}
 button{font:inherit;color:inherit;cursor:pointer}
+.head-right{display:flex;align-items:center;gap:10px}
+.sync-dot{width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25),0 0 8px 1px rgba(34,197,94,.7)}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
 #syncBtn .status.active,#githubBtn .status.active{color:#16803a;font-weight:700}
 #syncBtn .status.inactive,#githubBtn .status.inactive{color:var(--danger);font-weight:700}
@@ -73,7 +75,7 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
       <h1 id="greet">Hallo</h1>
       <div id="date"></div>
     </div>
-    <button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button>
+    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
   </header>
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
@@ -387,6 +389,15 @@ let syncHandle = null, syncReady = false, syncState = 'off', syncTimer = null, s
 const canon = data => JSON.stringify({version: 2, columns: data}, null, 2);
 const countItems = data => data.reduce((n, c) => n + c.items.length, 0);
 
+let githubStatus = 'off';
+function updateSyncDot(){
+  const parts = [];
+  if (syncHandle && syncState === 'active') parts.push('lokale Sync-Datei');
+  if (githubConfig.enabled && githubStatus !== 'off' && githubStatus !== 'error') parts.push('GitHub');
+  const dot = $('syncDot');
+  dot.hidden = !parts.length;
+  dot.title = parts.length ? 'Synchronisierung aktiv: ' + parts.join(' und ') : '';
+}
 function setSyncState(state){
   syncState = state;
   const btn = $('syncBtn');
@@ -396,6 +407,7 @@ function setSyncState(state){
   sp.className = 'status ' + map[state][1]; sp.textContent = map[state][0];
   btn.appendChild(sp);
   btn.title = syncHandle ? 'Datei: ' + syncHandle.name : 'Favoriten werden nur lokal in diesem Browser gespeichert';
+  updateSyncDot();
 }
 async function syncGranted(){
   try { return (await syncHandle.queryPermission({mode: 'readwrite'})) === 'granted'; } catch(e){ return false; }
@@ -430,8 +442,13 @@ async function syncPull(){
   if (r === 'invalid') { setSyncState('error'); return; }
   if (r === null) { syncReady = true; syncLast = ''; await syncWrite(); return; }
   syncLast = canon(r);
-  if (syncLast !== canon(cols)) { cols = r; saveLocal(); render(); }
-  syncReady = true; setSyncState('active');
+  syncReady = true;
+  if (syncLast !== canon(cols)) {
+    // GitHub hat Vorrang: die lokale Datei wird dann nur noch mit dem aktuellen Stand überschrieben
+    if (githubConfig.enabled) { await syncWrite(); return; }
+    cols = r; saveLocal(); render();
+  }
+  setSyncState('active');
 }
 async function syncGrant(){
   try { if ((await syncHandle.requestPermission({mode: 'readwrite'})) === 'granted') { await syncPull(); return; } } catch(e){}
@@ -457,7 +474,7 @@ function updateSyncDlg(){
   $('syncFileName').value = syncHandle ? syncHandle.name : 'Keine Datei ausgewählt';
   $('syncStopBtn').disabled = !syncHandle;
   $('syncInfo').textContent = syncHandle
-      ? 'Änderungen werden automatisch in diese Datei geschrieben und beim Start daraus gelesen. Liegt die Datei in einem Cloud-Ordner, gleicht sie sich zwischen deinen Geräten ab.'
+      ? (githubConfig.enabled ? 'GitHub-Sync ist aktiv und hat Vorrang: Diese Datei wird nur noch mit dem Stand aus GitHub überschrieben, nicht mehr von ihr gelesen. ' : '') + 'Änderungen werden automatisch in diese Datei geschrieben und beim Start daraus gelesen. Liegt die Datei in einem Cloud-Ordner, gleicht sie sich zwischen deinen Geräten ab.'
       : 'Ohne Sync-Datei bleiben die Favoriten nur lokal in diesem Browser gespeichert. Wähle eine JSON-Datei, am besten in einem Cloud-Ordner, um sie zwischen Browsern zu teilen.';
 }
 async function activateSync(h){
@@ -472,7 +489,10 @@ async function syncChoose(){
   const old = syncHandle; syncHandle = h;
   let r; try { r = await syncRead(); } catch(e){ r = 'invalid'; }
   if (r === 'invalid') { syncHandle = old; alert('Die Datei enthält keine gültigen Favoriten und wird nicht überschrieben.'); return; }
-  if (r) {
+  if (r && githubConfig.enabled) {
+    if (!confirm('GitHub-Sync ist aktiv und hat Vorrang.\n\nDer Inhalt dieser Datei (' + countItems(r) + ' Einträge) wird mit den Favoriten aus GitHub überschrieben. Fortfahren?')) { syncHandle = old; return; }
+    syncLast = '';
+  } else if (r) {
     if (!confirm(countItems(r) + ' Einträge in der Datei gefunden.\n\nAktuelle Favoriten durch den Inhalt der Datei ersetzen und die Datei künftig synchron halten?')) { syncHandle = old; return; }
     cols = r; saveLocal(); syncLast = canon(r);
   } else syncLast = '';
@@ -509,19 +529,25 @@ function githubLoad(){try{githubConfig={...GITHUB_DEFAULTS,...JSON.parse(localSt
 function githubSave(){localStorage.setItem(GITHUB_KEY,JSON.stringify(githubConfig))}
 function githubUrl(){const p=githubConfig.repo.trim().split('/');if(p.length!==2||!p[0]||!p[1])throw Error('Repository muss Benutzer/Repository entsprechen.');return 'https://api.github.com/repos/'+encodeURIComponent(p[0])+'/'+encodeURIComponent(p[1])+'/contents/'+githubConfig.path.trim().split('/').map(encodeURIComponent).join('/')}
 function githubHeaders(){const h={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};if(githubConfig.token)h.Authorization='Bearer '+githubConfig.token.trim();return h}
-function githubState(state){const map={off:['inaktiv','inactive'],active:['aktiv','active'],busy:['synchronisiert…','active'],error:['Fehler','inactive']},b=$('githubBtn');b.replaceChildren(document.createTextNode('GitHub-Sync: '));const x=document.createElement('span');x.className='status '+map[state][1];x.textContent=map[state][0];b.append(x);b.title=githubConfig.enabled?githubConfig.repo+'/'+githubConfig.path:'GitHub-Sync deaktiviert'}
+function githubState(state){githubStatus=state;updateSyncDot();const map={off:['inaktiv','inactive'],active:['aktiv','active'],busy:['synchronisiert…','active'],error:['Fehler','inactive']},b=$('githubBtn');b.replaceChildren(document.createTextNode('GitHub-Sync: '));const x=document.createElement('span');x.className='status '+map[state][1];x.textContent=map[state][0];b.append(x);b.title=githubConfig.enabled?githubConfig.repo+'/'+githubConfig.path:'GitHub-Sync deaktiviert'}
 function githubMsg(t,c=''){$('githubMessage').textContent=t;$('githubMessage').className=c}
 function to64(t){let b='',a=new TextEncoder().encode(t);a.forEach(x=>b+=String.fromCharCode(x));return btoa(b)}
 function from64(t){let b=atob(t.replace(/\s/g,''));return new TextDecoder().decode(Uint8Array.from(b,c=>c.charCodeAt(0)))}
 async function githubRequest(method='GET',body=null){const o={method,headers:githubHeaders()};if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}const u=githubUrl()+(method==='GET'?'?ref='+encodeURIComponent(githubConfig.branch)+'&_='+Date.now():'');const r=await fetch(u,o);if(r.status===404&&method==='GET')return null;const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||'GitHub-Fehler '+r.status);return d}
-async function githubPull(show=false){if(!githubConfig.enabled||!githubConfig.autoPull||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const d=fromData(JSON.parse(from64(r.content)));if(!d)throw Error('Die GitHub-Datei enthält keine gültigen Favoriten.');githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();render()}githubState('active');if(show)githubMsg('Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
+async function githubPull(show=false,dry=false){if(!githubConfig.enabled||(!githubConfig.autoPull&&!dry)||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const d=fromData(JSON.parse(from64(r.content)));if(!d)throw Error('Die GitHub-Datei enthält keine gültigen Favoriten.');if(!dry){githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();syncSchedule();render()}}githubState('active');if(show)githubMsg(dry?'Verbindung erfolgreich. Die Datei enthält '+countItems(d)+' Einträge. Es wurde nichts verändert.':'Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
 async function githubPush(force=false){if(!githubConfig.enabled||!githubConfig.autoPush||githubBusy)return;const j=canon(cols);if(!force&&j===githubLast)return;githubBusy=true;githubState('busy');try{const old=await githubRequest(),body={message:'Favoriten über Startseite aktualisiert',content:to64(j),branch:githubConfig.branch};if(old&&old.sha)body.sha=old.sha;await githubRequest('PUT',body);githubLast=j;githubState('active')}catch(e){githubState('error');console.error('GitHub-Sync',e)}finally{githubBusy=false}}
 function githubSchedule(){if(githubConfig.enabled&&githubConfig.autoPush){clearTimeout(githubTimer);githubTimer=setTimeout(()=>githubPush(),800)}}
 function githubFill(){$('githubRepo').value=githubConfig.repo;$('githubBranch').value=githubConfig.branch;$('githubPath').value=githubConfig.path;$('githubToken').value=githubConfig.token;$('githubAutoPull').checked=githubConfig.autoPull;$('githubAutoPush').checked=githubConfig.autoPush;githubMsg(githubConfig.enabled?'GitHub-Sync ist aktiv.':'GitHub-Sync ist noch nicht aktiviert.')}
 function githubRead(){return{repo:$('githubRepo').value.trim(),branch:$('githubBranch').value.trim()||'main',path:$('githubPath').value.trim(),token:$('githubToken').value.trim(),autoPull:$('githubAutoPull').checked,autoPush:$('githubAutoPush').checked,enabled:true}}
 $('githubBtn').onclick=()=>{githubFill();$('githubDlg').showModal()};$('githubCancelBtn').onclick=()=>$('githubDlg').close();
-$('githubTestBtn').onclick=async()=>{const old=githubConfig;githubConfig=githubRead();githubMsg('Verbindung wird geprüft…');await githubPull(true);const m=$('githubMessage').textContent,c=$('githubMessage').className;githubConfig=old;githubState(old.enabled?'active':'off');githubMsg(m,c)};
-$('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/')||!c.path||!c.token){githubMsg('Repository, Dateipfad und Token sind erforderlich.','error');return}githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
+$('githubTestBtn').onclick=async()=>{const old=githubConfig;githubConfig=githubRead();githubMsg('Verbindung wird geprüft…');await githubPull(true,true);const m=$('githubMessage').textContent,c=$('githubMessage').className;githubConfig=old;githubState(old.enabled?'active':'off');githubMsg(m,c)};
+$('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/')||!c.path||!c.token){githubMsg('Repository, Dateipfad und Token sind erforderlich.','error');return}if(!githubConfig.enabled){
+    const ok=c.autoPull
+      ?confirm('Warnung: Beim Aktivieren der GitHub-Synchronisierung werden deine lokal gespeicherten Favoriten mit den Daten aus GitHub überschrieben. Lokale Änderungen, die nicht in GitHub liegen, gehen dabei verloren.\n\nFortfahren?')
+      :c.autoPush?confirm('Hinweis: Die Datei in GitHub wird mit deinen lokalen Favoriten überschrieben.\n\nFortfahren?'):true;
+    if(!ok)return;
+  }
+  githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
 $('githubStopBtn').onclick=()=>{
   if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
   const keepLocal=confirm('Sollen die aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
@@ -530,7 +556,7 @@ $('githubStopBtn').onclick=()=>{
     saveLocal();
   }else{
     localStorage.removeItem(KEY);
-    cols=JSON.parse(JSON.stringify(DEFAULT));
+    cols=emptyCols();
     render();
   }
   githubState('off');githubFill();
