@@ -373,11 +373,38 @@ $('importFile').onchange = () => {
   };
   r.readAsText(f);
 };
-$('clearBtn').onclick = () => {
-  const n = cols.reduce((s, c) => s + c.items.length, 0);
-  if (n && confirm('Wirklich alle ' + n + ' Einträge löschen? Die Überschriften bleiben erhalten.')) {
-    cols.forEach(c => c.items = []); persist(); render();
+function downloadBackup(){
+  const blob = new Blob([canon(cols)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'favoriten-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function githubDeleteFile(){
+  githubBusy = true;
+  try {
+    const old = await githubRequest();
+    if (old && old.sha) await githubRequest('DELETE', {message: 'Favoriten-Datei über Startseite gelöscht', sha: old.sha, branch: githubConfig.branch});
+    githubLast = '';
+  } finally { githubBusy = false; }
+}
+$('clearBtn').onclick = async () => {
+  const n = countItems(cols);
+  if (!n) return;
+  if (!confirm('Wirklich alle ' + n + ' Einträge löschen? Die Überschriften bleiben erhalten.')) return;
+  if (confirm('Vor dem Löschen ein lokales Backup (JSON-Datei) herunterladen?\n\nOK = Backup herunterladen\nAbbrechen = ohne Backup fortfahren')) downloadBackup();
+  if (githubConfig.enabled) {
+    clearTimeout(githubTimer);
+    const del = confirm('GitHub-Sync ist aktiv.\n\nSoll auch die Datei in GitHub gelöscht werden?\n\nOK = auch in GitHub löschen\nAbbrechen = GitHub-Datei behalten (die lokalen Einträge werden beim nächsten Abgleich dann wieder aus GitHub geladen)');
+    if (del) {
+      githubState('busy');
+      try { await githubDeleteFile(); githubState('active'); }
+      catch(e){ githubState('error'); alert('Die GitHub-Datei konnte nicht gelöscht werden: ' + e.message + '\n\nDie Einträge wurden nicht gelöscht.'); return; }
+    }
   }
+  cols.forEach(c => c.items = []);
+  saveLocal(); syncSchedule(); render();
 };
 
 (function header(){
