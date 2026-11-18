@@ -17,8 +17,10 @@ h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
 #date{color:var(--muted);font-size:.95rem;margin-top:4px}
 button{font:inherit;color:inherit;cursor:pointer}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
-#syncBtn .status.active{color:#16803a;font-weight:700}
-#syncBtn .status.inactive{color:var(--danger);font-weight:700}
+#syncBtn .status.active,#githubBtn .status.active{color:#16803a;font-weight:700}
+#syncBtn .status.inactive,#githubBtn .status.inactive{color:var(--danger);font-weight:700}
+.gh-check{display:flex;align-items:center;gap:8px;color:var(--ink)} .gh-check input{width:auto;margin:0}
+#githubMessage{min-height:1.3em;font-size:.88rem;color:var(--muted)} #githubMessage.error{color:var(--danger)} #githubMessage.ok{color:#16803a}
 
 .link-btn:hover,.link-btn[aria-pressed=true]{color:var(--ink);border-color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -77,6 +79,7 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
     <button class="link-btn" id="exportBtn">Exportieren</button>
     <button class="link-btn" id="importBtn">Importieren</button>
     <button class="link-btn" id="syncBtn">Sync-Datei</button>
+    <button class="link-btn" id="githubBtn">GitHub-Sync</button>
     <button class="link-btn danger" id="clearBtn">Alle Einträge löschen</button>
     <span class="hint">Einträge ziehen, um sie zu sortieren – auch in andere Spalten</span>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -115,6 +118,21 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   </form>
 </dialog>
 
+<dialog id="githubDlg">
+  <form method="dialog">
+    <h2>GitHub-Synchronisierung</h2>
+    <p style="color:var(--muted);font-size:.9rem">Die Favoriten werden als JSON-Datei im Repository gespeichert. Der Token bleibt ausschließlich im lokalen Browser-Speicher dieses Geräts.</p>
+    <label>Repository<input id="githubRepo" value="pbv595f4y7-ui/startpage" autocomplete="off" spellcheck="false"></label>
+    <label>Branch<input id="githubBranch" value="main" autocomplete="off" spellcheck="false"></label>
+    <label>Datei im Repository<input id="githubPath" value="startseite-favoriten.json" autocomplete="off" spellcheck="false"></label>
+    <label>Fine-grained Personal Access Token<input id="githubToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+    <label class="gh-check"><input id="githubAutoPull" type="checkbox" checked> Beim Start und regelmäßig von GitHub laden</label>
+    <label class="gh-check"><input id="githubAutoPush" type="checkbox" checked> Änderungen automatisch nach GitHub speichern</label>
+    <p id="githubMessage"></p>
+    <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button type="button" class="link-btn" id="githubTestBtn">Verbindung testen</button><button type="button" class="link-btn danger" id="githubStopBtn">GitHub-Sync deaktivieren</button></div>
+    <div class="row"><button type="button" class="link-btn" id="githubCancelBtn">Abbrechen</button><button type="button" class="primary" id="githubSaveBtn">Speichern</button></div>
+  </form>
+</dialog>
 <script>
 const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
 const SETTINGS_DB = 'startseite-startdatei-v1', SETTINGS_STORE = 'settings';
@@ -160,7 +178,7 @@ function load(){
   return c;
 }
 function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify({columns: cols})); } catch(e){} }
-function persist(){ saveLocal(); syncSchedule(); }
+function persist(){ saveLocal(); syncSchedule(); githubSchedule(); }
 
 
 function settingsDb(){
@@ -480,7 +498,44 @@ $('syncStopBtn').onclick = async () => {
 $('syncCloseBtn').onclick = () => $('syncDlg').close();
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && syncHandle && syncReady && !editing && !$('dlg').open) syncPull();
+  if (document.visibilityState === 'visible' && githubConfig.enabled && !editing && !$('dlg').open) githubPull();
 });
+
+/* ---- Optionale GitHub-Synchronisierung ---- */
+const GITHUB_KEY='startseite-github-sync-v1';
+const GITHUB_DEFAULTS={repo:'pbv595f4y7-ui/startpage',branch:'main',path:'startseite-favoriten.json',token:'',autoPull:true,autoPush:true,enabled:false};
+let githubConfig={...GITHUB_DEFAULTS},githubTimer=null,githubBusy=false,githubLast='';
+function githubLoad(){try{githubConfig={...GITHUB_DEFAULTS,...JSON.parse(localStorage.getItem(GITHUB_KEY)||'{}')}}catch(e){githubConfig={...GITHUB_DEFAULTS}}}
+function githubSave(){localStorage.setItem(GITHUB_KEY,JSON.stringify(githubConfig))}
+function githubUrl(){const p=githubConfig.repo.trim().split('/');if(p.length!==2||!p[0]||!p[1])throw Error('Repository muss Benutzer/Repository entsprechen.');return 'https://api.github.com/repos/'+encodeURIComponent(p[0])+'/'+encodeURIComponent(p[1])+'/contents/'+githubConfig.path.trim().split('/').map(encodeURIComponent).join('/')}
+function githubHeaders(){const h={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};if(githubConfig.token)h.Authorization='Bearer '+githubConfig.token.trim();return h}
+function githubState(state){const map={off:['inaktiv','inactive'],active:['aktiv','active'],busy:['synchronisiert…','active'],error:['Fehler','inactive']},b=$('githubBtn');b.replaceChildren(document.createTextNode('GitHub-Sync: '));const x=document.createElement('span');x.className='status '+map[state][1];x.textContent=map[state][0];b.append(x);b.title=githubConfig.enabled?githubConfig.repo+'/'+githubConfig.path:'GitHub-Sync deaktiviert'}
+function githubMsg(t,c=''){$('githubMessage').textContent=t;$('githubMessage').className=c}
+function to64(t){let b='',a=new TextEncoder().encode(t);a.forEach(x=>b+=String.fromCharCode(x));return btoa(b)}
+function from64(t){let b=atob(t.replace(/\s/g,''));return new TextDecoder().decode(Uint8Array.from(b,c=>c.charCodeAt(0)))}
+async function githubRequest(method='GET',body=null){const o={method,headers:githubHeaders()};if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}const u=githubUrl()+(method==='GET'?'?ref='+encodeURIComponent(githubConfig.branch)+'&_='+Date.now():'');const r=await fetch(u,o);if(r.status===404&&method==='GET')return null;const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||'GitHub-Fehler '+r.status);return d}
+async function githubPull(show=false){if(!githubConfig.enabled||!githubConfig.autoPull||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const d=fromData(JSON.parse(from64(r.content)));if(!d)throw Error('Die GitHub-Datei enthält keine gültigen Favoriten.');githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();render()}githubState('active');if(show)githubMsg('Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
+async function githubPush(force=false){if(!githubConfig.enabled||!githubConfig.autoPush||githubBusy)return;const j=canon(cols);if(!force&&j===githubLast)return;githubBusy=true;githubState('busy');try{const old=await githubRequest(),body={message:'Favoriten über Startseite aktualisiert',content:to64(j),branch:githubConfig.branch};if(old&&old.sha)body.sha=old.sha;await githubRequest('PUT',body);githubLast=j;githubState('active')}catch(e){githubState('error');console.error('GitHub-Sync',e)}finally{githubBusy=false}}
+function githubSchedule(){if(githubConfig.enabled&&githubConfig.autoPush){clearTimeout(githubTimer);githubTimer=setTimeout(()=>githubPush(),800)}}
+function githubFill(){$('githubRepo').value=githubConfig.repo;$('githubBranch').value=githubConfig.branch;$('githubPath').value=githubConfig.path;$('githubToken').value=githubConfig.token;$('githubAutoPull').checked=githubConfig.autoPull;$('githubAutoPush').checked=githubConfig.autoPush;githubMsg(githubConfig.enabled?'GitHub-Sync ist aktiv.':'GitHub-Sync ist noch nicht aktiviert.')}
+function githubRead(){return{repo:$('githubRepo').value.trim(),branch:$('githubBranch').value.trim()||'main',path:$('githubPath').value.trim(),token:$('githubToken').value.trim(),autoPull:$('githubAutoPull').checked,autoPush:$('githubAutoPush').checked,enabled:true}}
+$('githubBtn').onclick=()=>{githubFill();$('githubDlg').showModal()};$('githubCancelBtn').onclick=()=>$('githubDlg').close();
+$('githubTestBtn').onclick=async()=>{const old=githubConfig;githubConfig=githubRead();githubMsg('Verbindung wird geprüft…');await githubPull(true);const m=$('githubMessage').textContent,c=$('githubMessage').className;githubConfig=old;githubState(old.enabled?'active':'off');githubMsg(m,c)};
+$('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/')||!c.path||!c.token){githubMsg('Repository, Dateipfad und Token sind erforderlich.','error');return}githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
+$('githubStopBtn').onclick=()=>{
+  if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
+  const keepLocal=confirm('Sollen die aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
+  githubConfig={...GITHUB_DEFAULTS};localStorage.removeItem(GITHUB_KEY);githubLast='';clearTimeout(githubTimer);
+  if(keepLocal){
+    saveLocal();
+  }else{
+    localStorage.removeItem(KEY);
+    cols=JSON.parse(JSON.stringify(DEFAULT));
+    render();
+  }
+  githubState('off');githubFill();
+};
+githubLoad();githubState(githubConfig.enabled?'active':'off');
 
 // Externe Änderungen der Sync-Datei spätestens nach 5 Sekunden übernehmen.
 setInterval(() => {
@@ -489,7 +544,8 @@ setInterval(() => {
   }
 }, 5000);
 
-(async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); })();
+setInterval(() => { if (document.visibilityState === 'visible' && githubConfig.enabled && githubConfig.autoPull && !editing && !$('dlg').open && !$('githubDlg').open) githubPull(); }, 15000);
+(async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); if (githubConfig.enabled && githubConfig.autoPull) await githubPull(); })();
 </script>
 </body>
 </html>
