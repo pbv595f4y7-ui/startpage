@@ -27,6 +27,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .primary:disabled{opacity:.45;cursor:not-allowed}
 .head-right{display:flex;align-items:center;gap:10px}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 0 5px 1px rgba(34,197,94,.7)}
+.sync-dot.err{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.25),0 0 5px 1px rgba(239,68,68,.7)}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
 #syncBtn .status.active,#githubBtn .status.active{color:#16803a;font-weight:700}
 #syncBtn .status.inactive,#githubBtn .status.inactive{color:var(--danger);font-weight:700}
@@ -481,12 +482,16 @@ const countItems = data => data.reduce((n, c) => n + c.items.length, 0);
 
 let githubStatus = 'off';
 function updateSyncDot(){
-  const parts = [];
-  if (syncHandle && syncState === 'active') parts.push('lokale Sync-Datei');
-  if (githubConfig.enabled && githubStatus !== 'off' && githubStatus !== 'error') parts.push('GitHub');
+  const ok = [], bad = [];
+  if (syncHandle && syncState === 'active') ok.push('lokale Sync-Datei');
+  if (syncHandle && syncState === 'error') bad.push('lokale Sync-Datei');
+  if (githubConfig.enabled && githubStatus === 'error') bad.push('GitHub');
+  else if (githubConfig.enabled && githubStatus !== 'off') ok.push('GitHub');
   const dot = $('syncDot');
-  dot.hidden = !parts.length || editing;
-  dot.title = parts.length ? 'Synchronisierung aktiv: ' + parts.join(' und ') : '';
+  dot.hidden = (!ok.length && !bad.length) || editing;
+  dot.classList.toggle('err', bad.length > 0);
+  const text = bad.length ? 'Fehler bei der Synchronisierung: ' + bad.join(' und ') : ok.length ? 'Synchronisierung aktiv: ' + ok.join(' und ') : '';
+  dot.title = text; dot.setAttribute('aria-label', text || 'Synchronisierung');
 }
 function setSyncState(state){
   syncState = state;
