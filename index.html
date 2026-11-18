@@ -840,7 +840,7 @@ async function encryptText(text,pw){if(!pw)throw Error('Für die Verschlüsselun
 async function decryptText(o,pw){if(!pw)throw Error('Die GitHub-Datei ist verschlüsselt. Bitte das Verschlüsselungs-Passwort eintragen.');if(!(o.iterations>=100000&&o.iterations<=2000000)||!o.salt||!o.iv||!o.ciphertext)throw Error('Die verschlüsselte GitHub-Datei ist beschädigt.');const key=await encKey(pw,o.salt,o.iterations);try{return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBytes(o.iv)},key,b64ToBytes(o.ciphertext)))}catch(e){throw Error('Entschlüsselung fehlgeschlagen: Das Passwort ist falsch oder die Datei ist beschädigt.')}}
 async function githubGuard(old){if(!old||!old.content)return;let raw;try{raw=JSON.parse(from64(old.content))}catch(e){return}if(raw&&raw.format===ENC_FORMAT)try{await decryptText(raw,githubConfig.password)}catch(e){throw Error('Das Passwort passt nicht zur verschlüsselten GitHub-Datei. Es wurde nichts überschrieben.')}}
 async function githubRequest(method='GET',body=null,path){const o={method,headers:githubHeaders()};if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}const u=githubUrl(path)+(method==='GET'?'?ref='+encodeURIComponent(githubConfig.branch)+'&_='+Date.now():'');const r=await fetch(u,o);if(r.status===404&&method==='GET')return null;const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||'GitHub-Fehler '+r.status);return d}
-async function githubPull(show=false,dry=false){if(!githubConfig.enabled||(!githubConfig.autoPull&&!dry)||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const raw=JSON.parse(from64(r.content)),wasEnc=!!(raw&&raw.format===ENC_FORMAT),d=fromData(wasEnc?JSON.parse(await decryptText(raw,githubConfig.password)):raw);if(!d)throw Error('Die GitHub-Datei enthält keine gültigen Favoriten.');if(!dry){githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();syncSchedule();render()}if(wasEnc!==!!githubConfig.encrypt){githubLast='';githubSchedule()}}githubState('active');if(show)githubMsg(dry?'Verbindung erfolgreich. Die Datei enthält '+countItems(d)+' Einträge'+(wasEnc?' (verschlüsselt, Passwort stimmt)':'')+'. Es wurde nichts verändert.':'Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
+async function githubPull(show=false,dry=false){if(!githubConfig.enabled||(!githubConfig.autoPull&&!dry)||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const raw=JSON.parse(from64(r.content)),wasEnc=!!(raw&&raw.format===ENC_FORMAT),d=fromData(wasEnc?JSON.parse(await decryptText(raw,githubConfig.password)):raw);if(!d)throw Error('GitHub-Datei enthält keine gültigen Favoriten.');if(!dry){githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();syncSchedule();render()}if(wasEnc!==!!githubConfig.encrypt){githubLast='';githubSchedule()}}githubState('active');if(show)githubMsg(dry?'Verbindung erfolgreich. Die Datei enthält '+countItems(d)+' Einträge'+(wasEnc?' (verschlüsselt, Passwort stimmt)':'')+'. Es wurde nichts verändert.':'Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
 async function githubPush(force=false){if(!githubConfig.enabled||!githubConfig.autoPush||githubBusy)return;const j=canon(cols);if(!force&&j===githubLast)return;githubBusy=true;githubState('busy');try{const old=await githubRequest();await githubGuard(old);const text=githubConfig.encrypt?await encryptText(j,githubConfig.password):j,body={message:'Update',content:to64(text),branch:githubConfig.branch};if(old&&old.sha)body.sha=old.sha;await githubRequest('PUT',body);githubLast=j;githubState('active')}catch(e){githubState('error');console.error('GitHub-Sync',e)}finally{githubBusy=false}}
 function githubSchedule(){if(githubConfig.enabled&&githubConfig.autoPush){clearTimeout(githubTimer);githubTimer=setTimeout(()=>githubPush(),800)}}
 function githubFill(){$('githubRepo').value=githubConfig.repo;$('githubBranch').value=githubConfig.branch;$('githubPath').value=githubConfig.path;$('githubToken').value=githubConfig.token;$('githubAutoPull').checked=githubConfig.autoPull;$('githubAutoPush').checked=githubConfig.autoPush;$('githubEncrypt').checked=githubConfig.enabled?!!githubConfig.encrypt:true;$('githubPassword').value=githubConfig.password||'';githubEncToggle();githubMsg(githubConfig.enabled?'GitHub-Sync ist aktiv.':'GitHub-Sync ist noch nicht aktiviert.')}
@@ -873,9 +873,11 @@ $('githubStopBtn').onclick=()=>{
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
 
-/* ---- Notizen & Dateianhänge (Anonymisiert, durchnummeriert & Massen-Löschung inklusive Verwaister Dateien) ---- */
+/* ---- Notizen & Dateianhänge (Ohne automatisches Löschen bei API-Verzögerungen) ---- */
 const NOTES_KEY = 'startseite-notizen';
 let notes = loadNotes(), notesDirty = false, notesTimer = null, notesBusy = false, notesRetry = false;
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; 
 
 function cleanFiles(arr){
   return (Array.isArray(arr) ? arr : []).filter(f => f && typeof f.name === 'string' && (typeof f.githubPath === 'string' || typeof f.data === 'string'));
@@ -904,7 +906,7 @@ function updateNotesUiState(){
   const clearAllBtn = $('notesClearAttachmentsBtn');
   if (btn) {
     btn.disabled = !on;
-    btn.title = on ? 'Datei verschlüsselt als anonymes Objekt anfügen (max. 10 MB)' : 'Deaktiviert: Bitte zuerst verschlüsselten GitHub-Sync aktivieren';
+    btn.title = on ? 'Datei verschlüsselt als anonymes Objekt anfügen (max. 50 MB)' : 'Deaktiviert: Bitte zuerst verschlüsselten GitHub-Sync aktivieren';
   }
   if (clearAllBtn) {
     clearAllBtn.disabled = !on;
@@ -978,8 +980,23 @@ async function downloadAttachmentFromGitHub(fileRef) {
   
   setNotesStatus('Lade Datei von GitHub…');
   try {
-    const res = await githubRequest('GET', null, fileRef.githubPath);
-    if (!res || !res.content) throw Error('Datei auf GitHub nicht gefunden.');
+    let res = null;
+    try {
+      res = await githubRequest('GET', null, fileRef.githubPath);
+    } catch(e) {
+      const basePath = githubConfig.path.trim().replace(/[^/]*$/, '');
+      const dirContents = await githubRequest('GET', null, basePath + 'attachments');
+      if (Array.isArray(dirContents)) {
+        const found = dirContents.find(item => item.path === fileRef.githubPath);
+        if (found) {
+          res = await githubRequest('GET', null, found.path);
+        }
+      }
+    }
+
+    if (!res || !res.content) {
+      throw Error('Datei auf GitHub nicht gefunden oder noch im Cache. Bitte kurz warten und erneut versuchen.');
+    }
     
     const raw = JSON.parse(from64(res.content));
     let decryptedJson;
@@ -1200,7 +1217,6 @@ if (uploadBtn) {
   };
 }
 
-// NEU: Button-Funktion zum Löschen aller Anhänge und verwaister Dateien im Ordner
 const clearAttachmentsBtn = $('notesClearAttachmentsBtn');
 if (clearAttachmentsBtn) {
   clearAttachmentsBtn.onclick = async () => {
@@ -1217,7 +1233,6 @@ if (clearAttachmentsBtn) {
       const basePath = githubConfig.path.trim().replace(/[^/]*$/, '');
       const attachmentsDir = basePath + 'attachments';
       
-      // Ordnerinhalt von GitHub abfragen
       const dirContents = await githubRequest('GET', null, attachmentsDir);
       if (Array.isArray(dirContents)) {
         for (const item of dirContents) {
@@ -1231,7 +1246,6 @@ if (clearAttachmentsBtn) {
         }
       }
 
-      // Lokale Referenzen leeren
       notes.files = [];
       notes.updated = Date.now();
       saveNotesLocal();
@@ -1252,8 +1266,9 @@ if (fileInElem) {
     const f = fileInElem.files[0];
     fileInElem.value = '';
     if (!f || !notesSyncOn()) return;
-    if (f.size > 10 * 1024 * 1024) {
-      setNotesStatus('Datei ist zu groß (maximal 10 MB möglich).', true);
+
+    if (f.size > MAX_FILE_SIZE) {
+      setNotesStatus('Fehler: Die Datei ist zu groß (' + formatBytes(f.size) + '). Maximal erlaubt sind 50 MB.', true);
       return;
     }
     
@@ -1271,7 +1286,7 @@ if (fileInElem) {
         
         notesDirty = true;
         notesPush();
-        setNotesStatus('Datei erfolgreich anonymisiert abgelegt.');
+        setNotesStatus('Datei erfolgreich hochgeladen.');
       } catch(e) {
         setNotesStatus('Fehler beim Hochladen der Datei: ' + e.message, true);
       }
