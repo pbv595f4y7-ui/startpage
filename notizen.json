@@ -1,0 +1,9 @@
+{
+  "format": "startseite-encrypted",
+  "version": 1,
+  "kdf": "PBKDF2-SHA256",
+  "iterations": 600000,
+  "salt": "MxJoLSPlMG1VX8B4fnhjIA==",
+  "iv": "0qnjo3sdTxsbv4Tf",
+  "ciphertext": "nuAI9OEkVbIqagbk/fkPqwmWnhb88pvghh4hDRGU6LnC/ytHV9/9LwaiN9elX6oGVg50CTYWHQ=="
+}
