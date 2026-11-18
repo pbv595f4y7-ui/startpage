@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Startseite</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2212%22 fill=%22%231f6f8b%22/%3E%3Ctext x=%2232%22 y=%2246%22 text-anchor=%22middle%22 font-family=%22Arial%2Csans-serif%22 font-size=%2246%22 fill=%22white%22%3E%F0%9D%8D%8A%3C/text%3E%3C/svg%3E">
 <style>
@@ -10,7 +10,7 @@
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:16px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:16px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
 main{max-width:1240px;margin:0 auto;padding:7vh 24px 48px}
 header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:36px}
 h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
@@ -33,7 +33,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 #clearNote{min-height:1.3em;margin:4px 0 0;font-size:.88rem;color:var(--muted)}
 .primary.dangerfill{background:var(--danger)}
 .primary:disabled{opacity:.45;cursor:not-allowed}
-.head-right{display:flex;align-items:center;gap:10px}
+.head-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 0 5px 1px rgba(34,197,94,.7)}
 .sync-dot.err{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.25),0 0 5px 1px rgba(239,68,68,.7)}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
@@ -69,21 +69,133 @@ button{font:inherit;color:inherit;cursor:pointer}
 .add b{flex:none;width:30px;font-size:1.5rem;font-weight:400;line-height:1;text-align:center}
 .tools{display:none;position:absolute;top:-8px;right:-6px;gap:4px}
 .editing .tools{display:flex}
-.tools button{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:.8rem;line-height:1}
+.tools button{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:.8rem;line-height:1;display:grid;place-items:center}
 .tools .del{color:var(--danger)}
+.tools .mob-move{display:none}
 .editing .tile a{pointer-events:none}
 .editing .tile{cursor:grab}
 .tile.dragging{opacity:.4}
 .tile.over a{border-color:var(--accent);border-style:dashed}
-dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(380px,92vw)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(380px,92vw);max-height:90dvh;overflow-y:auto}
 dialog::backdrop{background:rgba(10,15,20,.5)}
 dialog h2{margin:0 0 16px;font-size:1.15rem}
 label{display:block;font-size:.88rem;color:var(--muted);margin-bottom:12px}
-label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
+label input, label select{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
 .row{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 .primary{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px}
+#colSelectRow{display:none}
 @media (prefers-color-scheme:dark){.primary{color:#0e1419}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---- Smartphone / Tablet Optimierung (Desktop bleibt unverändert) ---- */
+@media (max-width: 768px) {
+  main {
+    padding: max(20px, env(safe-area-inset-top)) 16px max(40px, env(safe-area-inset-bottom));
+  }
+  header {
+    align-items: center;
+    margin-bottom: 24px;
+    gap: 12px;
+  }
+  h1 {
+    font-size: 1.55rem;
+  }
+  #date {
+    font-size: .88rem;
+  }
+  .icon-btn {
+    padding: 8px;
+  }
+  .icon-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+  .link-btn {
+    padding: 9px 12px;
+    font-size: .92rem;
+  }
+  #toolbar {
+    margin: -8px 0 20px;
+    gap: 8px;
+  }
+  #toolbar .link-btn {
+    flex: 1 1 calc(50% - 4px);
+    text-align: center;
+    justify-content: center;
+  }
+  #toolbar .hint {
+    display: none;
+  }
+  #cols {
+    gap: 18px;
+  }
+  /* Leere Spalten ohne Titel im normalen Ansichtsmodus ausblenden */
+  #cols:not(.editing) .col.empty-col {
+    display: none;
+  }
+  .col h2 {
+    min-height: 0;
+    margin-bottom: 10px;
+    font-size: 1rem;
+  }
+  .col h2:empty {
+    display: none;
+  }
+  .tile a, .add {
+    height: 48px;
+    padding: 0 14px;
+  }
+  .tile a:hover, .add:hover {
+    transform: none;
+  }
+  .tile a:active, .add:active {
+    background: var(--bg);
+    border-color: var(--accent);
+  }
+  /* Werkzeuge im Bearbeitungsmodus sauber innerhalb der Kachel platzieren */
+  .editing .tile a {
+    padding-right: 136px;
+  }
+  .tools {
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    gap: 6px;
+  }
+  .tools button {
+    width: 30px;
+    height: 30px;
+    font-size: .88rem;
+  }
+  .tools .mob-move {
+    display: grid;
+  }
+  #colSelectRow {
+    display: block;
+  }
+  /* Verhindert automatischen iOS-Zoom beim Fokussieren von Eingabefeldern */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  dialog {
+    padding: 20px 18px;
+    width: calc(100vw - 24px);
+    max-width: 480px;
+  }
+  #notesDlg {
+    width: calc(100vw - 24px);
+  }
+  #notesText {
+    min-height: 200px;
+  }
+  .row {
+    flex-wrap: wrap;
+  }
+  .row button {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}
 </style>
 </head>
 <body>
@@ -111,7 +223,10 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
   <form method="dialog" id="form">
     <h2 id="dlgTitle">Favorit hinzufügen</h2>
     <label>Name<input id="fName" required maxlength="40" autocomplete="off"></label>
-    <label>Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off"></label>
+    <label>Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
+    <label id="colSelectRow">Spalte
+      <select id="fCol"></select>
+    </label>
     <div class="row">
       <button type="button" class="link-btn" id="cancel">Abbrechen</button>
       <button class="primary">Speichern</button>
@@ -268,11 +383,13 @@ function render(){
   root.className = editing ? 'editing' : '';
   root.innerHTML = '';
   cols.forEach((col, c) => {
-    const el = document.createElement('section'); el.className = 'col';
+    const isEmpty = !col.title && !col.items.length;
+    const el = document.createElement('section');
+    el.className = 'col' + (isEmpty ? ' empty-col' : '');
     if (editing) {
       const inp = document.createElement('input');
       inp.className = 'title-in'; inp.value = col.title; inp.maxLength = 40;
-      inp.placeholder = 'Überschrift (optional)';
+      inp.placeholder = 'Überschrift Spalte ' + (c + 1) + ' (optional)';
       inp.setAttribute('aria-label', 'Überschrift Spalte ' + (c + 1));
       inp.oninput = () => { col.title = inp.value.trim(); persist(); };
       el.appendChild(inp);
@@ -321,6 +438,14 @@ function iconSources(it, host){
   return list;
 }
 
+function moveStep(c, i, dir){
+  const target = i + dir;
+  if (target < 0 || target >= cols[c].items.length) return;
+  const [moved] = cols[c].items.splice(i, 1);
+  cols[c].items.splice(target, 0, moved);
+  persist(); render();
+}
+
 function makeTile(c, i, it){
   const host = new URL(it.url).hostname;
   const tile = document.createElement('div'); tile.className = 'tile';
@@ -347,11 +472,17 @@ function makeTile(c, i, it){
   const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
   a.append(ico, nm);
   const tools = document.createElement('div'); tools.className = 'tools';
-  const ed = document.createElement('button'); ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', it.name + ' ändern');
+  const up = document.createElement('button'); up.className = 'mob-move'; up.type = 'button'; up.textContent = '↑'; up.title = 'Nach oben'; up.setAttribute('aria-label', it.name + ' nach oben');
+  up.disabled = i === 0;
+  up.onclick = () => moveStep(c, i, -1);
+  const dn = document.createElement('button'); dn.className = 'mob-move'; dn.type = 'button'; dn.textContent = '↓'; dn.title = 'Nach unten'; dn.setAttribute('aria-label', it.name + ' nach unten');
+  dn.disabled = i === cols[c].items.length - 1;
+  dn.onclick = () => moveStep(c, i, 1);
+  const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', it.name + ' ändern');
   ed.onclick = () => openDlg(c, i);
-  const del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', it.name + ' löschen');
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', it.name + ' löschen');
   del.onclick = () => { cols[c].items.splice(i, 1); persist(); render(); };
-  tools.append(ed, del);
+  tools.append(up, dn, ed, del);
   tile.append(a, tools);
   return tile;
 }
@@ -369,6 +500,15 @@ function openDlg(c, i){
   $('dlgTitle').textContent = i < 0 ? 'Favorit hinzufügen' : 'Favorit ändern';
   $('fName').value = i < 0 ? '' : cols[c].items[i].name;
   $('fUrl').value = i < 0 ? '' : cols[c].items[i].url;
+  const sel = $('fCol');
+  sel.innerHTML = '';
+  cols.forEach((col, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = 'Spalte ' + (idx + 1) + (col.title ? ' (' + col.title + ')' : '');
+    if (idx === c) opt.selected = true;
+    sel.appendChild(opt);
+  });
   dlg.showModal();
   $('fName').focus();
 }
@@ -378,7 +518,15 @@ $('form').addEventListener('submit', e => {
   const url = normalize($('fUrl').value);
   if (!url) { e.preventDefault(); $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.'); $('fUrl').reportValidity(); return; }
   const entry = {name: $('fName').value.trim(), url};
-  if (editIdx < 0) cols[editCol].items.push(entry); else cols[editCol].items[editIdx] = entry;
+  const targetCol = parseInt($('fCol').value, 10);
+  if (editIdx < 0) {
+    cols[targetCol].items.push(entry);
+  } else if (targetCol === editCol) {
+    cols[editCol].items[editIdx] = entry;
+  } else {
+    cols[editCol].items.splice(editIdx, 1);
+    cols[targetCol].items.push(entry);
+  }
   persist(); render();
 });
 
@@ -727,7 +875,6 @@ async function notesPush(){
       const rem = await notesDecode(old);
       if (rem.text === notes.text) { notesDirty = false; setNotesStatus(notesIdleStatus()); return; }
       if (rem.updated > notes.updated) {
-        // Anderswo neuer bearbeitet: nichts überschreiben, beide Fassungen behalten
         notes = {text: rem.text + '\n\n--- Konflikt: lokale Fassung ---\n' + notes.text, updated: Date.now()};
         saveNotesLocal(); showNotesText();
       }
