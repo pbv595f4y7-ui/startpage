@@ -18,6 +18,14 @@ h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
 button{font:inherit;color:inherit;cursor:pointer}
 .link-btn:disabled{opacity:.45;cursor:not-allowed}
 .link-btn:disabled:hover{color:var(--muted);border-color:var(--line)}
+.greet-row{display:flex;align-items:center;gap:10px}
+.icon-btn{background:none;border:0;padding:6px;border-radius:8px;color:var(--muted);display:grid;place-items:center}
+.icon-btn:hover{color:var(--accent)}
+.icon-btn svg{width:22px;height:22px}
+#notesDlg{width:min(600px,94vw)}
+#notesText{display:block;width:100%;min-height:260px;resize:vertical;padding:12px;font:inherit;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px}
+#notesStatus{margin:10px 0 0;font-size:.85rem;color:var(--muted)}
+#notesStatus.err{color:var(--danger)}
 .chk{display:flex;align-items:center;gap:10px;margin-bottom:10px;color:var(--ink)}
 .chk input{width:auto;margin:0;padding:0}
 .chk.off{color:var(--muted);opacity:.6}
@@ -82,7 +90,7 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
 <main>
   <header>
     <div>
-      <h1 id="greet">Hallo</h1>
+      <div class="greet-row"><h1 id="greet">Hallo</h1><button class="icon-btn" id="notesBtn" type="button" title="Notizen" aria-label="Notizen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M8.5 10h7M8.5 14h7M8.5 17.5h4"/></svg></button></div>
       <div id="date"></div>
     </div>
     <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
@@ -127,6 +135,15 @@ label input{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;co
       <button type="button" class="link-btn danger" id="syncStopBtn">Synchronisierung beenden</button>
       <button type="button" class="primary" id="syncCloseBtn">Schließen</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="notesDlg">
+  <form method="dialog">
+    <h2>Notizen</h2>
+    <textarea id="notesText" placeholder="Notizen schreiben…" spellcheck="false"></textarea>
+    <p id="notesStatus"></p>
+    <div class="row"><button type="button" class="primary" id="notesClose">Schließen</button></div>
   </form>
 </dialog>
 
@@ -628,7 +645,7 @@ const GITHUB_DEFAULTS={repo:'pbv595f4y7-ui/startpage',branch:'main',path:'starts
 let githubConfig={...GITHUB_DEFAULTS},githubTimer=null,githubBusy=false,githubLast='';
 function githubLoad(){try{githubConfig={...GITHUB_DEFAULTS,...JSON.parse(localStorage.getItem(GITHUB_KEY)||'{}')}}catch(e){githubConfig={...GITHUB_DEFAULTS}}}
 function githubSave(){localStorage.setItem(GITHUB_KEY,JSON.stringify(githubConfig))}
-function githubUrl(){const p=githubConfig.repo.trim().split('/');if(p.length!==2||!p[0]||!p[1])throw Error('Repository muss Benutzer/Repository entsprechen.');return 'https://api.github.com/repos/'+encodeURIComponent(p[0])+'/'+encodeURIComponent(p[1])+'/contents/'+githubConfig.path.trim().split('/').map(encodeURIComponent).join('/')}
+function githubUrl(path=githubConfig.path){const p=githubConfig.repo.trim().split('/');if(p.length!==2||!p[0]||!p[1])throw Error('Repository muss Benutzer/Repository entsprechen.');return 'https://api.github.com/repos/'+encodeURIComponent(p[0])+'/'+encodeURIComponent(p[1])+'/contents/'+path.trim().split('/').map(encodeURIComponent).join('/')}
 function githubHeaders(){const h={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};if(githubConfig.token)h.Authorization='Bearer '+githubConfig.token.trim();return h}
 function githubState(state){githubStatus=state;updateSyncDot();const map={off:['inaktiv','inactive'],active:['aktiv','active'],busy:['synchronisiert…','active'],error:['Fehler','inactive']},b=$('githubBtn');b.replaceChildren(document.createTextNode('GitHub-Sync: '));const x=document.createElement('span');x.className='status '+map[state][1];x.textContent=map[state][0];b.append(x);b.title=githubConfig.enabled?githubConfig.repo+'/'+githubConfig.path+(githubConfig.encrypt?' (verschlüsselt)':''):'GitHub-Sync deaktiviert'}
 function githubMsg(t,c=''){$('githubMessage').textContent=t;$('githubMessage').className=c}
@@ -642,7 +659,7 @@ async function encKey(pw,salt,iter){needCrypto();if(encCache&&encCache.pw===pw&&
 async function encryptText(text,pw){if(!pw)throw Error('Für die Verschlüsselung fehlt das Passwort.');const salt=encCache&&encCache.pw===pw&&encCache.iter===ENC_ITER?encCache.salt:bytesToB64(crypto.getRandomValues(new Uint8Array(16)));const key=await encKey(pw,salt,ENC_ITER);const iv=crypto.getRandomValues(new Uint8Array(12));const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(text)));return JSON.stringify({format:ENC_FORMAT,version:1,kdf:'PBKDF2-SHA256',iterations:ENC_ITER,salt,iv:bytesToB64(iv),ciphertext:bytesToB64(ct)},null,2)}
 async function decryptText(o,pw){if(!pw)throw Error('Die GitHub-Datei ist verschlüsselt. Bitte das Verschlüsselungs-Passwort eintragen.');if(!(o.iterations>=100000&&o.iterations<=2000000)||!o.salt||!o.iv||!o.ciphertext)throw Error('Die verschlüsselte GitHub-Datei ist beschädigt.');const key=await encKey(pw,o.salt,o.iterations);try{return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBytes(o.iv)},key,b64ToBytes(o.ciphertext)))}catch(e){throw Error('Entschlüsselung fehlgeschlagen: Das Passwort ist falsch oder die Datei ist beschädigt.')}}
 async function githubGuard(old){if(!old||!old.content)return;let raw;try{raw=JSON.parse(from64(old.content))}catch(e){return}if(raw&&raw.format===ENC_FORMAT)try{await decryptText(raw,githubConfig.password)}catch(e){throw Error('Das Passwort passt nicht zur verschlüsselten GitHub-Datei. Es wurde nichts überschrieben.')}}
-async function githubRequest(method='GET',body=null){const o={method,headers:githubHeaders()};if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}const u=githubUrl()+(method==='GET'?'?ref='+encodeURIComponent(githubConfig.branch)+'&_='+Date.now():'');const r=await fetch(u,o);if(r.status===404&&method==='GET')return null;const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||'GitHub-Fehler '+r.status);return d}
+async function githubRequest(method='GET',body=null,path){const o={method,headers:githubHeaders()};if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}const u=githubUrl(path)+(method==='GET'?'?ref='+encodeURIComponent(githubConfig.branch)+'&_='+Date.now():'');const r=await fetch(u,o);if(r.status===404&&method==='GET')return null;const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||'GitHub-Fehler '+r.status);return d}
 async function githubPull(show=false,dry=false){if(!githubConfig.enabled||(!githubConfig.autoPull&&!dry)||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const raw=JSON.parse(from64(r.content)),wasEnc=!!(raw&&raw.format===ENC_FORMAT),d=fromData(wasEnc?JSON.parse(await decryptText(raw,githubConfig.password)):raw);if(!d)throw Error('Die GitHub-Datei enthält keine gültigen Favoriten.');if(!dry){githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();syncSchedule();render()}if(wasEnc!==!!githubConfig.encrypt){githubLast='';githubSchedule()}}githubState('active');if(show)githubMsg(dry?'Verbindung erfolgreich. Die Datei enthält '+countItems(d)+' Einträge'+(wasEnc?' (verschlüsselt, Passwort stimmt)':'')+'. Es wurde nichts verändert.':'Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
 async function githubPush(force=false){if(!githubConfig.enabled||!githubConfig.autoPush||githubBusy)return;const j=canon(cols);if(!force&&j===githubLast)return;githubBusy=true;githubState('busy');try{const old=await githubRequest();await githubGuard(old);const text=githubConfig.encrypt?await encryptText(j,githubConfig.password):j,body={message:'Favoriten über Startseite aktualisiert',content:to64(text),branch:githubConfig.branch};if(old&&old.sha)body.sha=old.sha;await githubRequest('PUT',body);githubLast=j;githubState('active')}catch(e){githubState('error');console.error('GitHub-Sync',e)}finally{githubBusy=false}}
 function githubSchedule(){if(githubConfig.enabled&&githubConfig.autoPush){clearTimeout(githubTimer);githubTimer=setTimeout(()=>githubPush(),800)}}
@@ -676,6 +693,89 @@ $('githubStopBtn').onclick=()=>{
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
 
+/* ---- Notizen (lokal, bei aktivem GitHub-Sync mit Passwort verschlüsselt in GitHub) ---- */
+const NOTES_KEY = 'startseite-notizen';
+let notes = loadNotes(), notesDirty = false, notesTimer = null, notesBusy = false, notesRetry = false;
+function loadNotes(){
+  try { const v = JSON.parse(localStorage.getItem(NOTES_KEY)); if (v && typeof v.text === 'string') return {text: v.text, updated: +v.updated || 0}; } catch(e){}
+  return {text: '', updated: 0};
+}
+function saveNotesLocal(){ try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch(e){} }
+const notesSyncOn = () => githubConfig.enabled && githubConfig.encrypt && !!githubConfig.password;
+const notesPath = () => githubConfig.path.trim().replace(/[^/]*$/, '') + 'notizen.json';
+function setNotesStatus(msg, err){ const el = $('notesStatus'); el.textContent = msg; el.classList.toggle('err', !!err); }
+function notesIdleStatus(){
+  if (!githubConfig.enabled) return 'Nur lokal in diesem Browser gespeichert.';
+  if (!notesSyncOn()) return 'Nur lokal gespeichert. Für die Synchronisierung der Notizen die Verschlüsselung in den GitHub-Einstellungen aktivieren.';
+  return 'Verschlüsselt mit GitHub synchronisiert.';
+}
+async function notesDecode(r){
+  const raw = JSON.parse(from64(r.content));
+  if (!(raw && raw.format === ENC_FORMAT)) throw Error('Die Notizdatei in GitHub ist nicht verschlüsselt und wird nicht verwendet.');
+  const o = JSON.parse(await decryptText(raw, githubConfig.password));
+  if (typeof o.text !== 'string') throw Error('Die Notizdatei in GitHub ist beschädigt.');
+  return {text: o.text, updated: +o.updated || 0};
+}
+function showNotesText(){ if ($('notesDlg').open && $('notesText').value !== notes.text) $('notesText').value = notes.text; }
+async function notesPush(){
+  if (!notesSyncOn() || !githubConfig.autoPush) { notesDirty = false; if ($('notesDlg').open) setNotesStatus(notesIdleStatus()); return; }
+  if (notesBusy) { clearTimeout(notesTimer); notesTimer = setTimeout(notesPush, 1000); return; }
+  notesBusy = true;
+  try {
+    const old = await githubRequest('GET', null, notesPath());
+    if (old && old.content) {
+      const rem = await notesDecode(old);
+      if (rem.text === notes.text) { notesDirty = false; setNotesStatus(notesIdleStatus()); return; }
+      if (rem.updated > notes.updated) {
+        // Anderswo neuer bearbeitet: nichts überschreiben, beide Fassungen behalten
+        notes = {text: rem.text + '\n\n--- Konflikt: lokale Fassung ---\n' + notes.text, updated: Date.now()};
+        saveNotesLocal(); showNotesText();
+      }
+    }
+    const body = {message: 'Notizen aktualisiert', content: to64(await encryptText(JSON.stringify(notes), githubConfig.password)), branch: githubConfig.branch};
+    if (old && old.sha) body.sha = old.sha;
+    await githubRequest('PUT', body, notesPath());
+    notesDirty = false; notesRetry = false;
+    setNotesStatus(notesIdleStatus());
+  } catch(e){
+    if (!notesRetry) { notesRetry = true; clearTimeout(notesTimer); notesTimer = setTimeout(notesPush, 1500); }
+    else { notesRetry = false; setNotesStatus('Notizen konnten nicht synchronisiert werden: ' + e.message, true); }
+  } finally { notesBusy = false; }
+}
+async function notesPull(){
+  if (!notesSyncOn() || !githubConfig.autoPull || notesBusy || notesDirty) return;
+  notesBusy = true;
+  let pushAfter = false;
+  try {
+    const r = await githubRequest('GET', null, notesPath());
+    if (!r) pushAfter = !!notes.text;
+    else {
+      const rem = await notesDecode(r);
+      if (rem.updated > notes.updated && rem.text !== notes.text) { notes = rem; saveNotesLocal(); showNotesText(); }
+      else if (rem.text !== notes.text) pushAfter = true;
+    }
+    if ($('notesDlg').open) setNotesStatus(notesIdleStatus());
+  } catch(e){ if ($('notesDlg').open) setNotesStatus('Notizen konnten nicht geladen werden: ' + e.message, true); }
+  finally { notesBusy = false; }
+  if (pushAfter) { notesDirty = true; notesPush(); }
+}
+$('notesText').addEventListener('input', () => {
+  notes = {text: $('notesText').value, updated: Date.now()};
+  saveNotesLocal(); notesDirty = true;
+  if (notesSyncOn() && githubConfig.autoPush) { setNotesStatus('Speichert…'); clearTimeout(notesTimer); notesTimer = setTimeout(notesPush, 1000); }
+  else { notesDirty = false; setNotesStatus(notesIdleStatus()); }
+});
+$('notesBtn').onclick = () => {
+  $('notesText').value = notes.text;
+  setNotesStatus(notesIdleStatus());
+  $('notesDlg').showModal();
+  $('notesText').focus();
+  notesPull();
+};
+$('notesClose').onclick = () => $('notesDlg').close();
+$('notesDlg').addEventListener('close', () => { if (notesDirty) { clearTimeout(notesTimer); notesPush(); } });
+setInterval(() => { if (document.visibilityState === 'visible' && !editing) notesPull(); }, 15000);
+
 // Externe Änderungen der Sync-Datei spätestens nach 5 Sekunden übernehmen.
 setInterval(() => {
   if (document.visibilityState === 'visible' && syncHandle && syncReady && !editing && !$('dlg').open && !$('syncDlg').open) {
@@ -684,7 +784,7 @@ setInterval(() => {
 }, 5000);
 
 setInterval(() => { if (document.visibilityState === 'visible' && githubConfig.enabled && githubConfig.autoPull && !editing && !$('dlg').open && !$('githubDlg').open) githubPull(); }, 15000);
-(async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); if (githubConfig.enabled && githubConfig.autoPull) await githubPull(); })();
+(async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); if (githubConfig.enabled && githubConfig.autoPull) { await githubPull(); notesPull(); } })();
 </script>
 </body>
 </html>
