@@ -15,6 +15,18 @@
         {
           "name": "Claude",
           "url": "https://claude.ai/"
+        },
+        {
+          "name": "Wikipedia",
+          "url": "https://de.wikipedia.org/"
+        },
+        {
+          "name": "OpenStreetMap",
+          "url": "https://www.openstreetmap.org/"
+        },
+        {
+          "name": "Claude",
+          "url": "https://claude.ai/"
         }
       ]
     },
