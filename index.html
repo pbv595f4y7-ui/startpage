@@ -52,6 +52,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .att-dl:hover{text-decoration:underline}
 .att-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .att-size{color:var(--muted);font-size:.82rem;flex-shrink:0}
+.att-countdown{color:var(--danger);font-size:.82rem;font-weight:600;flex-shrink:0}
 .att-del{background:none;border:1px solid var(--line);width:26px;height:26px;border-radius:6px;color:var(--danger);font-size:.85rem;display:grid;place-items:center;flex-shrink:0}
 .att-del:hover{background:rgba(179,55,47,.1);border-color:var(--danger)}
 #notesStatus{margin:10px 0 0;font-size:.85rem;color:var(--muted)}
@@ -860,7 +861,7 @@ $('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/
   githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
 $('githubStopBtn').onclick=()=>{
   if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
-  const keepLocal=confirm('Sollen die aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
+  const keepLocal=confirm('Sollen the aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
   githubConfig={...GITHUB_DEFAULTS};localStorage.removeItem(GITHUB_KEY);githubLast='';clearTimeout(githubTimer);
   if(keepLocal){
     saveLocal();
@@ -873,7 +874,7 @@ $('githubStopBtn').onclick=()=>{
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
 
-/* ---- Notizen & Dateianhänge (Ohne automatisches Löschen bei API-Verzögerungen) ---- */
+/* ---- Notizen & Dateianhänge (Mit automatischer Berechnungs- und Countdown-Logik) ---- */
 const NOTES_KEY = 'startseite-notizen';
 let notes = loadNotes(), notesDirty = false, notesTimer = null, notesBusy = false, notesRetry = false;
 
@@ -995,7 +996,7 @@ async function downloadAttachmentFromGitHub(fileRef) {
     }
 
     if (!res || !res.content) {
-      throw Error('Datei auf GitHub nicht gefunden oder noch im Cache. Bitte kurz warten und erneut versuchen.');
+      throw Error('Datei auf GitHub noch nicht im Index verfügbar. Bitte Countdown abwarten.');
     }
     
     const raw = JSON.parse(from64(res.content));
@@ -1010,7 +1011,7 @@ async function downloadAttachmentFromGitHub(fileRef) {
     triggerFileDownload(fileData);
     setNotesStatus(notesIdleStatus());
   } catch(e) {
-    setNotesStatus('Fehler beim Herunterladen: ' + e.message, true);
+    setNotesStatus('Hinweis: ' + e.message, true);
   }
 }
 
@@ -1060,19 +1061,30 @@ async function uploadAttachmentToGitHub(fileObj, base64Data) {
   
   await githubRequest('PUT', body, path);
   
+  // Berechne die geschätzte Verfügbarkeitszeit basierend auf der Dateigröße
+  // Faustregel: 3 Sekunden Grundzeit + ca. 45 Sekunden pro GB Upload/Indizierungszeit
+  const sizeInGb = (fileObj.size || 0) / (1024 * 1024 * 1024);
+  const estimatedSeconds = Math.max(5, Math.round(3 + (sizeInGb * 45)));
+  const availableAt = Date.now() + (estimatedSeconds * 1000);
+  
   return {
     name: fileObj.name,
     size: fileObj.size,
     type: fileObj.type,
-    githubPath: path
+    githubPath: path,
+    availableAt: availableAt
   };
 }
+
+let countdownInterval = null;
 
 function renderNotesAttachments(){
   const box = $('notesAttachments');
   if (!box) return;
   box.innerHTML = '';
   
+  let hasPendingCountdowns = false;
+
   (notes.files || []).forEach((f, idx) => {
     const item = document.createElement('div');
     item.className = 'att-item';
@@ -1099,6 +1111,22 @@ function renderNotesAttachments(){
       sz.className = 'att-size';
       sz.textContent = '(' + formatBytes(f.size) + ')';
       dl.appendChild(sz);
+    }
+
+    // Countdown-Anzeige berechnen & einfügen, falls die geschätzte Zeit noch in der Zukunft liegt
+    const countdownSpan = document.createElement('span');
+    countdownSpan.className = 'att-countdown';
+    
+    const now = Date.now();
+    if (f.availableAt && f.availableAt > now) {
+      hasPendingCountdowns = true;
+      const remainingSecs = Math.ceil((f.availableAt - now) / 1000);
+      const mins = Math.floor(remainingSecs / 60);
+      const secs = remainingSecs % 60;
+      countdownSpan.textContent = `⏳ Verfügbar in ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      dl.appendChild(countdownSpan);
+    } else {
+      countdownSpan.textContent = '';
     }
 
     const del = document.createElement('button');
@@ -1134,6 +1162,23 @@ function renderNotesAttachments(){
     item.append(dl, del);
     box.appendChild(item);
   });
+
+  // Intervall steuern: Wenn Countdowns laufen, sekündlich UI auffrischen
+  if (hasPendingCountdowns) {
+    if (!countdownInterval) {
+      countdownInterval = setInterval(() => {
+        if ($('notesDlg').open) {
+          renderNotesAttachments();
+        } else {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+      }, 1000);
+    }
+  } else if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
 }
 
 async function notesDecode(r){
@@ -1272,7 +1317,7 @@ if (fileInElem) {
       return;
     }
     
-    setNotesStatus('Verschlüssele und lade Datei anonym hoch…');
+    setNotesStatus('Verschlüssele und lade Datei hoch…');
     const reader = new FileReader();
     reader.onload = async evt => {
       try {
@@ -1286,7 +1331,7 @@ if (fileInElem) {
         
         notesDirty = true;
         notesPush();
-        setNotesStatus('Datei erfolgreich hochgeladen.');
+        setNotesStatus('Datei hochgeladen. Countdown für die Indexierung läuft.');
       } catch(e) {
         setNotesStatus('Fehler beim Hochladen der Datei: ' + e.message, true);
       }
