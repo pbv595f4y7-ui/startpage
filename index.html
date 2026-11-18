@@ -44,8 +44,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .icon-btn:hover{color:var(--accent)}
 .icon-btn svg{width:22px;height:22px}
 #notesDlg{width:min(600px,94vw)}
-#notesText{display:block;width:100%;min-height:260px;resize:vertical;padding:12px;font:inherit;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;transition:border-color .15s, background-color .15s}
-#notesText.drop-active{border-color:var(--accent);border-style:dashed;background:rgba(31,111,139,.04)}
+#notesText{display:block;width:100%;min-height:240px;resize:vertical;padding:12px;font:inherit;line-height:1.5;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px}
 #notesStatus{margin:10px 0 0;font-size:.85rem;color:var(--muted)}
 #notesStatus.err{color:var(--danger)}
 .chk{display:flex;align-items:center;gap:10px;margin-bottom:10px;color:var(--ink)}
@@ -274,9 +273,13 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
 <dialog id="notesDlg">
   <form method="dialog">
     <h2>Notizen</h2>
-    <textarea id="notesText" placeholder="Notizen schreiben oder Datei hier per Drag & Drop ablegen…" spellcheck="false"></textarea>
+    <textarea id="notesText" placeholder="Notizen schreiben…" spellcheck="false"></textarea>
     <p id="notesStatus"></p>
-    <div class="row"><button type="button" class="primary" id="notesClose">Schließen</button></div>
+    <div class="row" style="justify-content:space-between; align-items:center;">
+      <button type="button" class="link-btn" id="notesUploadBtn" title="Datei hochladen (nur bei aktivem GitHub-Sync)">Datei hochladen…</button>
+      <input type="file" id="notesFileIn" hidden>
+      <button type="button" class="primary" id="notesClose">Schließen</button>
+    </div>
   </form>
 </dialog>
 
@@ -844,7 +847,7 @@ $('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/
   githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
 $('githubStopBtn').onclick=()=>{
   if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
-  const keepLocal=confirm('Sollen die aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
+  const keepLocal=confirm('Sollen the aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
   githubConfig={...GITHUB_DEFAULTS};localStorage.removeItem(GITHUB_KEY);githubLast='';clearTimeout(githubTimer);
   if(keepLocal){
     saveLocal();
@@ -857,7 +860,7 @@ $('githubStopBtn').onclick=()=>{
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
 
-/* ---- Notizen (lokal, bei aktivem GitHub-Sync mit Passwort verschlüsselt in GitHub) ---- */
+/* ---- Notizen & Datei-Upload (nur bei aktivem GitHub-Sync) ---- */
 const NOTES_KEY = 'startseite-notizen';
 let notes = loadNotes(), notesDirty = false, notesTimer = null, notesBusy = false, notesRetry = false;
 function loadNotes(){
@@ -871,7 +874,7 @@ function setNotesStatus(msg, err){ const el = $('notesStatus'); el.textContent =
 function notesIdleStatus(){
   if (!githubConfig.enabled) return 'Nur lokal in diesem Browser gespeichert.';
   if (!notesSyncOn()) return 'Nur lokal gespeichert. Für die Synchronisierung der Notizen die Verschlüsselung in den GitHub-Einstellungen aktivieren.';
-  return 'Verschlüsselt mit GitHub synchronisiert. (Drag & Drop aktiv)';
+  return 'Verschlüsselt mit GitHub synchronisiert.';
 }
 async function notesDecode(r){
   const raw = JSON.parse(from64(r.content));
@@ -923,60 +926,52 @@ async function notesPull(){
   if (pushAfter) { notesDirty = true; notesPush(); }
 }
 
-/* ---- Drag & Drop für das Notizfeld (nur bei aktivem GitHub-Sync) ---- */
-const notesTextEl = $('notesText');
-['dragenter', 'dragover'].forEach(eventName => {
-  notesTextEl.addEventListener(eventName, e => {
-    if (!notesSyncOn()) return;
-    e.preventDefault(); e.stopPropagation();
-    notesTextEl.classList.add('drop-active');
-  }, false);
-});
-['dragleave', 'drop'].forEach(eventName => {
-  notesTextEl.addEventListener(eventName, e => {
-    if (!notesSyncOn()) return;
-    e.preventDefault(); e.stopPropagation();
-    notesTextEl.classList.remove('drop-active');
-  }, false);
-});
-notesTextEl.addEventListener('drop', e => {
+/* ---- Datei-Upload Button Steuerung ---- */
+const notesUploadBtn = $('notesUploadBtn');
+const notesFileIn = $('notesFileIn');
+
+notesUploadBtn.onclick = () => {
   if (!notesSyncOn()) {
-    setNotesStatus('Drag & Drop ist deaktiviert, da kein verschlüsselter GitHub-Sync aktiv ist.', true);
+    setNotesStatus('Datei-Upload ist deaktiviert, da kein verschlüsselter GitHub-Sync aktiv ist.', true);
     return;
   }
-  const dt = e.dataTransfer;
-  const files = dt.files;
-  if (!files || !files.length) return;
-  const file = files[0];
+  notesFileIn.click();
+};
+
+notesFileIn.onchange = () => {
+  const f = notesFileIn.files[0];
+  notesFileIn.value = '';
+  if (!f || !notesSyncOn()) return;
   const reader = new FileReader();
   reader.onload = function(evt) {
     const content = evt.target.result;
+    const notesTextEl = $('notesText');
     const separator = notesTextEl.value.trim() ? '\n\n' : '';
-    notesTextEl.value = notesTextEl.value + separator + '--- Datei: ' + file.name + ' ---\n' + content;
+    notesTextEl.value = notesTextEl.value + separator + '--- Datei: ' + f.name + ' ---\n' + content;
     notes = {text: notesTextEl.value, updated: Date.now()};
     saveNotesLocal();
     notesDirty = true;
-    setNotesStatus('Datei eingelesen & wird verschlüsselt gespeichert…');
+    setNotesStatus('Datei hochgeladen & wird verschlüsselt gespeichert…');
     clearTimeout(notesTimer);
     notesPush();
   };
-  reader.readAsText(file);
-});
+  reader.readAsText(f);
+};
 
-notesTextEl.addEventListener('input', () => {
-  notes = {text: notesTextEl.value, updated: Date.now()};
+$('notesText').addEventListener('input', () => {
+  notes = {text: $('notesText').value, updated: Date.now()};
   saveNotesLocal(); notesDirty = true;
   if (notesSyncOn() && githubConfig.autoPush) { setNotesStatus('Speichert…'); clearTimeout(notesTimer); notesTimer = setTimeout(notesPush, 1000); }
   else { notesDirty = false; setNotesStatus(notesIdleStatus()); }
 });
 $('notesBtn').onclick = () => {
-  notesTextEl.value = notes.text;
+  $('notesText').value = notes.text;
   setNotesStatus(notesIdleStatus());
   $('notesDlg').showModal();
-  notesTextEl.focus();
+  $('notesText').focus();
   notesPull();
 };
-$('notesClose').onclick = () => $('notesDlg().close()');
+$('notesClose').onclick = () => $('notesDlg').close();
 $('notesDlg').addEventListener('close', () => { if (notesDirty) { clearTimeout(notesTimer); notesPush(); } });
 setInterval(() => { if (document.visibilityState === 'visible' && !editing) notesPull(); }, 15000);
 
