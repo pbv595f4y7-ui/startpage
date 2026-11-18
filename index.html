@@ -4,7 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Startseite</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Startseite">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#e9edf1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161c23" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2212%22 fill=%22%231f6f8b%22/%3E%3Ctext x=%2232%22 y=%2246%22 text-anchor=%22middle%22 font-family=%22Arial%2Csans-serif%22 font-size=%2246%22 fill=%22white%22%3E%F0%9D%8D%8A%3C/text%3E%3C/svg%3E">
+<link id="appleIcon" rel="apple-touch-icon" sizes="180x180">
+<script>
+(function(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 180;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#1f6f8b';
+  ctx.fillRect(0, 0, 180, 180);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '130px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('\u{1D34A}', 90, 130);
+  document.getElementById('appleIcon').href = c.toDataURL('image/png');
+})();
+</script>
 <style>
 :root{--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;color-scheme:dark}}
@@ -129,7 +150,6 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   #cols {
     gap: 18px;
   }
-  /* Leere Spalten ohne Titel im normalen Ansichtsmodus ausblenden */
   #cols:not(.editing) .col.empty-col {
     display: none;
   }
@@ -152,7 +172,6 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     background: var(--bg);
     border-color: var(--accent);
   }
-  /* Werkzeuge im Bearbeitungsmodus sauber innerhalb der Kachel platzieren */
   .editing .tile a {
     padding-right: 136px;
   }
@@ -173,7 +192,6 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   #colSelectRow {
     display: block;
   }
-  /* Verhindert automatischen iOS-Zoom beim Fokussieren von Eingabefeldern */
   input, textarea, select {
     font-size: 16px !important;
   }
