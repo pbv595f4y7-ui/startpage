@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "columns": [
+    {
+      "title": "",
+      "items": [
+        {
+          "name": "Wikipedia",
+          "url": "https://de.wikipedia.org/"
+        },
+        {
+          "name": "OpenStreetMap",
+          "url": "https://www.openstreetmap.org/"
+        },
+        {
+          "name": "Claude",
+          "url": "https://claude.ai/"
+        }
+      ]
+    },
+    {
+      "title": "",
+      "items": []
+    },
+    {
+      "title": "",
+      "items": []
+    },
+    {
+      "title": "",
+      "items": []
+    }
+  ]
+}
