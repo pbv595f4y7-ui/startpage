@@ -16,8 +16,10 @@ header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
 h1{margin:0;font-size:2rem;font-weight:600;letter-spacing:-.01em}
 #date{color:var(--muted);font-size:.95rem;margin-top:4px}
 button{font:inherit;color:inherit;cursor:pointer}
+.link-btn:disabled{opacity:.45;cursor:not-allowed}
+.link-btn:disabled:hover{color:var(--muted);border-color:var(--line)}
 .head-right{display:flex;align-items:center;gap:10px}
-.sync-dot{width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25),0 0 8px 1px rgba(34,197,94,.7)}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 0 5px 1px rgba(34,197,94,.7)}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
 #syncBtn .status.active,#githubBtn .status.active{color:#16803a;font-weight:700}
 #syncBtn .status.inactive,#githubBtn .status.inactive{color:var(--danger);font-weight:700}
@@ -341,6 +343,7 @@ $('editBtn').onclick = () => {
   $('editBtn').setAttribute('aria-pressed', editing);
   $('editBtn').textContent = editing ? 'Fertig' : 'Bearbeiten';
   $('toolbar').classList.toggle('show', editing);
+  updateSyncDot();
   render();
 };
 
@@ -395,7 +398,7 @@ function updateSyncDot(){
   if (syncHandle && syncState === 'active') parts.push('lokale Sync-Datei');
   if (githubConfig.enabled && githubStatus !== 'off' && githubStatus !== 'error') parts.push('GitHub');
   const dot = $('syncDot');
-  dot.hidden = !parts.length;
+  dot.hidden = !parts.length || editing;
   dot.title = parts.length ? 'Synchronisierung aktiv: ' + parts.join(' und ') : '';
 }
 function setSyncState(state){
@@ -464,7 +467,13 @@ function armPermissionClick(){
 }
 async function syncInit(){
   setSyncState('off');
-  if (!SYNC_SUPPORTED) { $('syncBtn').hidden = true; return; }
+  if (!SYNC_SUPPORTED) {
+    const b = $('syncBtn');
+    b.disabled = true;
+    b.title = 'Nicht verfügbar: Der Sync funktioniert aktuell nur in Chrome und Edge.';
+    const st = b.querySelector('.status'); if (st) { st.textContent = 'nicht verfügbar'; st.className = 'status'; }
+    return;
+  }
   try { syncHandle = (await settingsGet('syncHandle')) || null; } catch(e){ syncHandle = null; }
   if (!syncHandle) return;
   if (await syncGranted()) await syncPull();
