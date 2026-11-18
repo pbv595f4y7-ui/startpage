@@ -44,6 +44,10 @@
         {
           "name": "Audiobookshelf",
           "url": "http://192.168.178.10:13379/"
+        },
+        {
+          "name": "SP",
+          "url": "https://file///Users/mbloeck/Library/CloudStorage/OneDrive-NetAppInc/Shortcuts/StartPage%20-%20General/NetApp-StartPage.htm"
         }
       ]
     },
