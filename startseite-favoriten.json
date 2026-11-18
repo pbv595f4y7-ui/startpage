@@ -2,45 +2,92 @@
   "version": 2,
   "columns": [
     {
-      "title": "",
+      "title": "Finanzen",
       "items": [
         {
-          "name": "Wikipedia",
-          "url": "https://de.wikipedia.org/"
+          "name": "Elster",
+          "url": "https://www.elster.de/"
         },
         {
-          "name": "OpenStreetMap",
-          "url": "https://www.openstreetmap.org/"
+          "name": "FinanzBlick",
+          "url": "https://www.buhl.de/mein-buhlkonto"
         },
         {
-          "name": "Claude",
-          "url": "https://claude.ai/"
+          "name": "Sparda Bank",
+          "url": "https://www.sparda-hessen.de/services_auth/auth-frontend/?v=de65ad306fb0a26d5f8f6ed69df1c7f5&client_id=online-banking&redirect_uri=https:%2F%2Fwww.sparda-hessen.de%2Fservices_cloud%2Fportal%2Fportal-oauth%2Flogin"
         },
         {
-          "name": "Wikipedia",
-          "url": "https://de.wikipedia.org/"
+          "name": "1822direkt",
+          "url": "https://www.1822direkt-banking.de/ng-banking/login/eingabe"
         },
         {
-          "name": "OpenStreetMap",
-          "url": "https://www.openstreetmap.org/"
+          "name": "TradeRepublic",
+          "url": "https://app.traderepublic.com/login"
         },
         {
-          "name": "Claude",
-          "url": "https://claude.ai/"
+          "name": "E*Trade",
+          "url": "https://us.etrade.com/etx/pxy/login"
         }
       ]
     },
     {
-      "title": "",
-      "items": []
+      "title": "HA",
+      "items": [
+        {
+          "name": "Home Assistant",
+          "url": "http://192.168.178.10:8123/config/dashboard"
+        },
+        {
+          "name": "Jellyfin",
+          "url": "http://192.168.178.4:8096/web/#/home.html"
+        },
+        {
+          "name": "Audiobookshelf",
+          "url": "http://192.168.178.10:13379/"
+        }
+      ]
     },
     {
-      "title": "",
-      "items": []
+      "title": "privat",
+      "items": [
+        {
+          "name": "Hairline Nidderau",
+          "url": "https://www.friseurteamhairline.de/nidderau-nidderforum/"
+        },
+        {
+          "name": "Claude",
+          "url": "https://claude.ai/"
+        },
+        {
+          "name": "Sauerbraten",
+          "url": "https://sauerbraten.org/"
+        },
+        {
+          "name": "Wallbox",
+          "url": "https://my.wallbox.com/auth/login"
+        },
+        {
+          "name": "NRGKick",
+          "url": "https://nrgkick.com/mein-konto/"
+        },
+        {
+          "name": "FritzBox",
+          "url": "https://fritz.box/"
+        }
+      ]
     },
     {
-      "title": "",
-      "items": []
+      "title": "News",
+      "items": [
+        {
+          "name": "Feedly",
+          "url": "https://feedly.com/i/my/me"
+        },
+        {
+          "name": "ntv",
+          "url": "https://www.ntv.de/"
+        }
+      ]
     }
   ]
 }
