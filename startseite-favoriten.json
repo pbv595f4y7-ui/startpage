@@ -1,9 +1,101 @@
 {
-  "format": "startseite-encrypted",
-  "version": 1,
-  "kdf": "PBKDF2-SHA256",
-  "iterations": 600000,
-  "salt": "vPx+mWVK5BoULiw6EtwDPg==",
-  "iv": "EoiQQHrCLsmeR7Oh",
-  "ciphertext": "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"
+  "version": 2,
+  "columns": [
+    {
+      "title": "Finanzen",
+      "items": [
+        {
+          "name": "Elster",
+          "url": "https://www.elster.de/"
+        },
+        {
+          "name": "FinanzBlick",
+          "url": "https://www.buhl.de/mein-buhlkonto"
+        },
+        {
+          "name": "Sparda Bank",
+          "url": "https://www.sparda-hessen.de/services_auth/auth-frontend/?v=de65ad306fb0a26d5f8f6ed69df1c7f5&client_id=online-banking&redirect_uri=https:%2F%2Fwww.sparda-hessen.de%2Fservices_cloud%2Fportal%2Fportal-oauth%2Flogin"
+        },
+        {
+          "name": "1822direkt",
+          "url": "https://www.1822direkt-banking.de/ng-banking/login/eingabe"
+        },
+        {
+          "name": "TradeRepublic",
+          "url": "https://app.traderepublic.com/login"
+        },
+        {
+          "name": "E*Trade",
+          "url": "https://us.etrade.com/etx/pxy/login"
+        }
+      ]
+    },
+    {
+      "title": "HA",
+      "items": [
+        {
+          "name": "Home Assistant",
+          "url": "http://192.168.178.10:8123/config/dashboard"
+        },
+        {
+          "name": "Jellyfin",
+          "url": "http://192.168.178.4:8096/web/#/home.html"
+        },
+        {
+          "name": "Audiobookshelf",
+          "url": "http://192.168.178.10:13379/"
+        }
+      ]
+    },
+    {
+      "title": "privat",
+      "items": [
+        {
+          "name": "Hairline Nidderau",
+          "url": "https://www.friseurteamhairline.de/nidderau-nidderforum/"
+        },
+        {
+          "name": "Claude",
+          "url": "https://claude.ai/"
+        },
+        {
+          "name": "Sauerbraten",
+          "url": "https://sauerbraten.org/"
+        },
+        {
+          "name": "Wallbox",
+          "url": "https://my.wallbox.com/auth/login"
+        },
+        {
+          "name": "NRGKick",
+          "url": "https://nrgkick.com/mein-konto/"
+        },
+        {
+          "name": "FritzBox",
+          "url": "https://fritz.box/"
+        },
+        {
+          "name": "Jotta StartSeite",
+          "url": "https://jottacloud.com/s/45328b4efed717b4b2e94bd6266cdbd8303/thumbs"
+        },
+        {
+          "name": "GitHub Pages",
+          "url": "https://github.com/pbv595f4y7-ui/startpage"
+        }
+      ]
+    },
+    {
+      "title": "News",
+      "items": [
+        {
+          "name": "Feedly",
+          "url": "https://feedly.com/i/my/me"
+        },
+        {
+          "name": "ntv",
+          "url": "https://www.ntv.de/"
+        }
+      ]
+    }
+  ]
 }
