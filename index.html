@@ -99,7 +99,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tile a:hover,.add:hover{transform:translateY(-1px);border-color:var(--accent)}
 .ico{flex:none;width:30px;height:30px;display:grid;place-items:center;font-weight:600;color:var(--accent)}
 .ico.letter{border-radius:8px;background:var(--bg)}
-.ico img{width:28px;height:28px;object-fit:contain}
+.ico.symbol{border-radius:8px;background:var(--bg);font-size:1.15rem;line-height:1}
+.ico.symbol svg{width:20px;height:20px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ico img{width:28px;height:28px;object-fit:contain;border-radius:4px}
 .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .add{border-style:dashed;background:transparent;color:var(--muted);width:100%;font-size:.95rem}
 .add b{flex:none;width:30px;font-size:1.5rem;font-weight:400;line-height:1;text-align:center}
@@ -112,7 +114,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .editing .tile{cursor:grab}
 .tile.dragging{opacity:.4}
 .tile.over a{border-color:var(--accent);border-style:dashed}
-dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(380px,92vw);max-height:90dvh;overflow-y:auto}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(420px,92vw);max-height:90dvh;overflow-y:auto}
 dialog::backdrop{background:rgba(10,15,20,.5)}
 dialog h2{margin:0 0 16px;font-size:1.15rem}
 label{display:block;font-size:.88rem;color:var(--muted);margin-bottom:12px}
@@ -120,6 +122,14 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
 .row{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 .primary{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px}
 #colSelectRow{display:none}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.dlg-head h2{margin:0}
+.ico-preview-box{display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--bg);border:1px solid var(--line);border-radius:10px;font-size:.8rem;color:var(--muted)}
+.ico-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0 12px}
+.ico-choice{height:38px;border:1px solid var(--line);border-radius:8px;background:var(--bg);display:grid;place-items:center;color:var(--ink);font-size:1.1rem;padding:0}
+.ico-choice svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ico-choice:hover,.ico-choice.active{border-color:var(--accent);background:rgba(31,111,139,.12);color:var(--accent)}
+.field-hint{font-size:.8rem;color:var(--muted);margin:-6px 0 12px}
 @media (prefers-color-scheme:dark){.primary{color:#0e1419}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
@@ -253,9 +263,34 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
 
 <dialog id="dlg">
   <form method="dialog" id="form">
-    <h2 id="dlgTitle">Favorit hinzufügen</h2>
+    <div class="dlg-head">
+      <h2 id="dlgTitle">Favorit hinzufügen</h2>
+      <div class="ico-preview-box" title="Vorschau">
+        <span id="fIconPreview" class="ico"></span>
+        <span>Vorschau</span>
+      </div>
+    </div>
     <label>Name<input id="fName" required maxlength="40" autocomplete="off"></label>
     <label>Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
+    <label>Favicon-Quelle
+      <select id="fIconMode">
+        <option value="auto">Automatisch (von Zieladresse)</option>
+        <option value="site">Von einer Webseite</option>
+        <option value="icon">Icon / Symbol auswählen</option>
+      </select>
+    </label>
+    <div id="fIconSiteRow" hidden>
+      <label>Webseite oder Bild-URL für Favicon
+        <input id="fIconSite" placeholder="z. B. wikipedia.org oder https://.../icon.png" autocomplete="off" inputmode="url">
+      </label>
+      <p class="field-hint">Domain einer Webseite (lädt deren Favicon) oder direkter Link zu einer Bilddatei.</p>
+    </div>
+    <div id="fIconSymbolRow" hidden>
+      <div class="ico-grid" id="fIconGrid" role="group" aria-label="Icon auswählen"></div>
+      <label>Oder eigenes Emoji / Zeichen
+        <input id="fIconCustom" maxlength="8" placeholder="z. B. 🏠, ★, A" autocomplete="off">
+      </label>
+    </div>
     <label id="colSelectRow">Spalte
       <select id="fCol"></select>
     </label>
@@ -354,8 +389,30 @@ const SETTINGS_DB = 'startseite-startdatei-v1', SETTINGS_STORE = 'settings';
 const $ = id => document.getElementById(id);
 const emptyCols = () => Array.from({length: NCOLS}, () => ({title: '', items: []}));
 
+const PRESET_ICONS = {
+  'svg:home': { label: 'Haus', svg: '<svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9.5 20v-6h5v6"/></svg>' },
+  'svg:server': { label: 'Server', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="17" r="1"/></svg>' },
+  'svg:globe': { label: 'Web', svg: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>' },
+  'svg:folder': { label: 'Ordner', svg: '<svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg>' },
+  'svg:cloud': { label: 'Cloud', svg: '<svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>' },
+  'svg:play': { label: 'Medien', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><polygon points="10 8.5 16 12 10 15.5 10 8.5"/></svg>' },
+  'svg:music': { label: 'Musik', svg: '<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
+  'svg:book': { label: 'Buch', svg: '<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
+  'svg:camera': { label: 'Kamera', svg: '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>' },
+  'svg:mail': { label: 'E-Mail', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>' },
+  'svg:calendar': { label: 'Kalender', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>' },
+  'svg:settings': { label: 'Einstellungen', svg: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' },
+  'svg:shield': { label: 'Sicherheit', svg: '<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' },
+  'svg:router': { label: 'Netzwerk', svg: '<svg viewBox="0 0 24 24"><rect x="2" y="14" width="20" height="6" rx="2"/><path d="M6 14v-4M18 14v-4M9 7a4.5 4.5 0 0 1 6 0M6.5 4.5a8 8 0 0 1 11 0"/></svg>' },
+  'svg:terminal': { label: 'Terminal', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l4 3-4 3M13 15h4"/></svg>' },
+  'svg:cart': { label: 'Einkauf', svg: '<svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11l2.5-8H6"/></svg>' },
+  'svg:news': { label: 'Nachrichten', svg: '<svg viewBox="0 0 24 24"><path d="M4 4h14v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4z"/><path d="M18 8h2v10a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h4"/></svg>' },
+  'svg:star': { label: 'Stern', svg: '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' }
+};
+
 function normalize(u){
   u = String(u).trim();
+  if (!u) return null;
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   try { return new URL(u).href; } catch(e){ return null; }
 }
@@ -364,7 +421,14 @@ function cleanItems(list){
   (Array.isArray(list) ? list : []).forEach(x => {
     if (x && typeof x.name === 'string' && typeof x.url === 'string') {
       const u = normalize(x.url);
-      if (u) out.push({name: x.name.trim().slice(0, 40) || u, url: u});
+      if (u) {
+        const entry = {name: x.name.trim().slice(0, 40) || u, url: u};
+        if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
+          entry.iconMode = x.iconMode;
+          entry.iconValue = x.iconValue.trim().slice(0, 500);
+        }
+        out.push(entry);
+      }
     }
   });
   return out;
@@ -466,28 +530,61 @@ function render(){
   });
 }
 
-const SERVICES = [
-  {re: /home-?assistant|nabu\.casa|(^|\.)hass(\.|$)/i, ports: ['8123'], site: 'home-assistant.io',
-   paths: ['/static/icons/favicon-192x192.png', '/static/icons/favicon.ico']},
-  {re: /jellyfin/i, ports: ['8096', '8920'], site: 'jellyfin.org',
-   paths: ['/web/favicon.png', '/web/touchicon.png', '/web/favicon.ico']},
-  {re: /audio-?book-?shelf/i, ports: ['13378'], site: 'audiobookshelf.org',
-   paths: ['/icon.svg', '/Logo.png', '/favicon.ico']}
-];
-function matchService(it){
-  const u = new URL(it.url);
-  const nameKey = it.name.replace(/\s+/g, '');
-  return SERVICES.find(s => s.ports.includes(u.port) || s.re.test(u.hostname) || s.re.test(nameKey)) || null;
+function isDirectImageUrl(u){
+  return /\.(png|jpe?g|gif|svg|ico|webp|avif)(\?.*)?$/i.test(u.pathname) || /^data:image\//i.test(u.href);
+}
+function siteIconSources(rawSite){
+  const list = [];
+  const norm = normalize(rawSite);
+  if (!norm) return list;
+  try {
+    const u = new URL(norm);
+    if (isDirectImageUrl(u)) {
+      list.push(u.href);
+    }
+    list.push('https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(u.hostname));
+    list.push(u.origin + '/favicon.ico');
+  } catch(e){}
+  return list;
 }
 function iconSources(it, host){
-  const list = [], svc = matchService(it);
-  if (svc) {
-    const o = new URL(it.url).origin;
-    svc.paths.forEach(p => list.push(o + p));
-    list.push('https://www.google.com/s2/favicons?sz=64&domain=' + svc.site);
+  if (it.iconMode === 'site' && it.iconValue) {
+    const customList = siteIconSources(it.iconValue);
+    if (customList.length) return customList;
   }
-  list.push('https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host));
-  return list;
+  return ['https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host)];
+}
+
+function renderIconElement(ico, it){
+  ico.className = 'ico';
+  ico.innerHTML = '';
+  if (it.iconMode === 'icon' && it.iconValue) {
+    ico.classList.add('symbol');
+    if (PRESET_ICONS[it.iconValue]) {
+      ico.innerHTML = PRESET_ICONS[it.iconValue].svg;
+    } else {
+      ico.textContent = it.iconValue;
+    }
+    return;
+  }
+  let host = '';
+  try { host = new URL(it.url).hostname; } catch(e){}
+  const srcs = host ? iconSources(it, host) : (it.iconMode === 'site' && it.iconValue ? siteIconSources(it.iconValue) : []);
+  const fallbackChar = (it.name || host || '?').trim().charAt(0).toUpperCase() || '?';
+  if (!srcs.length) {
+    ico.textContent = fallbackChar;
+    ico.classList.add('letter');
+    return;
+  }
+  const img = new Image();
+  img.alt = '';
+  let k = 0;
+  img.onerror = () => {
+    if (++k < srcs.length) img.src = srcs[k];
+    else { ico.innerHTML = ''; ico.textContent = fallbackChar; ico.classList.add('letter'); }
+  };
+  img.src = srcs[0];
+  ico.appendChild(img);
 }
 
 function moveStep(c, i, dir){
@@ -499,7 +596,6 @@ function moveStep(c, i, dir){
 }
 
 function makeTile(c, i, it){
-  const host = new URL(it.url).hostname;
   const tile = document.createElement('div'); tile.className = 'tile';
   if (editing) {
     tile.draggable = true;
@@ -511,16 +607,8 @@ function makeTile(c, i, it){
   }
   const a = document.createElement('a'); a.href = it.url;
   a.target = '_blank'; a.rel = 'noopener noreferrer';
-  const ico = document.createElement('span'); ico.className = 'ico';
-  const img = new Image(); img.alt = '';
-  const srcs = iconSources(it, host);
-  let k = 0;
-  img.onerror = () => {
-    if (++k < srcs.length) img.src = srcs[k];
-    else { ico.textContent = it.name.charAt(0).toUpperCase(); ico.classList.add('letter'); }
-  };
-  img.src = srcs[0];
-  ico.appendChild(img);
+  const ico = document.createElement('span');
+  renderIconElement(ico, it);
   const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
   a.append(ico, nm);
   const tools = document.createElement('div'); tools.className = 'tools';
@@ -547,11 +635,101 @@ function moveTo(c, i){
 }
 
 const dlg = $('dlg');
+let selectedSymbol = 'svg:home';
+
+(function initIconGrid(){
+  const grid = $('fIconGrid');
+  Object.entries(PRESET_ICONS).forEach(([key, def]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ico-choice';
+    btn.dataset.icon = key;
+    btn.title = def.label;
+    btn.setAttribute('aria-label', def.label);
+    btn.innerHTML = def.svg;
+    btn.onclick = () => {
+      selectedSymbol = key;
+      $('fIconCustom').value = '';
+      syncIconGridSelection();
+      updateIconPreview();
+    };
+    grid.appendChild(btn);
+  });
+})();
+
+function syncIconGridSelection(){
+  const customVal = $('fIconCustom').value.trim();
+  const activeKey = customVal ? '' : selectedSymbol;
+  $('fIconGrid').querySelectorAll('.ico-choice').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.icon === activeKey);
+  });
+}
+
+function getDraftIconConfig(){
+  const mode = $('fIconMode').value;
+  if (mode === 'site') {
+    const val = $('fIconSite').value.trim();
+    return val ? {iconMode: 'site', iconValue: val} : {};
+  }
+  if (mode === 'icon') {
+    const custom = $('fIconCustom').value.trim();
+    const val = custom || selectedSymbol;
+    return val ? {iconMode: 'icon', iconValue: val} : {};
+  }
+  return {};
+}
+
+function updateIconModeUI(){
+  const mode = $('fIconMode').value;
+  $('fIconSiteRow').hidden = mode !== 'site';
+  $('fIconSymbolRow').hidden = mode !== 'icon';
+  syncIconGridSelection();
+  updateIconPreview();
+}
+
+let previewTimer = null;
+function updateIconPreview(){
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    const draft = {
+      name: $('fName').value.trim() || 'Vorschau',
+      url: normalize($('fUrl').value) || 'https://example.com',
+      ...getDraftIconConfig()
+    };
+    renderIconElement($('fIconPreview'), draft);
+  }, 120);
+}
+
+$('fIconMode').addEventListener('change', updateIconModeUI);
+$('fName').addEventListener('input', updateIconPreview);
+$('fUrl').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
+$('fIconSite').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
+$('fIconCustom').addEventListener('input', () => { syncIconGridSelection(); updateIconPreview(); });
+
 function openDlg(c, i){
   editCol = c; editIdx = i;
-  $('dlgTitle').textContent = i < 0 ? 'Favorit hinzufügen' : 'Favorit ändern';
-  $('fName').value = i < 0 ? '' : cols[c].items[i].name;
-  $('fUrl').value = i < 0 ? '' : cols[c].items[i].url;
+  const item = i < 0 ? null : cols[c].items[i];
+  $('dlgTitle').textContent = item ? 'Favorit ändern' : 'Favorit hinzufügen';
+  $('fName').value = item ? item.name : '';
+  $('fUrl').value = item ? item.url : '';
+
+  const mode = item && (item.iconMode === 'site' || item.iconMode === 'icon') ? item.iconMode : 'auto';
+  $('fIconMode').value = mode;
+  $('fIconSite').value = mode === 'site' ? (item.iconValue || '') : '';
+  if (mode === 'icon' && item.iconValue) {
+    if (PRESET_ICONS[item.iconValue]) {
+      selectedSymbol = item.iconValue;
+      $('fIconCustom').value = '';
+    } else {
+      selectedSymbol = 'svg:home';
+      $('fIconCustom').value = item.iconValue;
+    }
+  } else {
+    selectedSymbol = 'svg:home';
+    $('fIconCustom').value = '';
+  }
+  updateIconModeUI();
+
   const sel = $('fCol');
   sel.innerHTML = '';
   cols.forEach((col, idx) => {
@@ -565,11 +743,20 @@ function openDlg(c, i){
   $('fName').focus();
 }
 $('cancel').onclick = () => dlg.close();
-$('fUrl').addEventListener('input', e => e.target.setCustomValidity(''));
 $('form').addEventListener('submit', e => {
   const url = normalize($('fUrl').value);
   if (!url) { e.preventDefault(); $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.'); $('fUrl').reportValidity(); return; }
-  const entry = {name: $('fName').value.trim(), url};
+  const mode = $('fIconMode').value;
+  if (mode === 'site') {
+    const siteUrl = normalize($('fIconSite').value);
+    if (!siteUrl) {
+      e.preventDefault();
+      $('fIconSite').setCustomValidity('Bitte eine gültige Webseiten- oder Bildadresse eingeben.');
+      $('fIconSite').reportValidity();
+      return;
+    }
+  }
+  const entry = {name: $('fName').value.trim(), url, ...getDraftIconConfig()};
   const targetCol = parseInt($('fCol').value, 10);
   if (editIdx < 0) {
     cols[targetCol].items.push(entry);
@@ -1388,7 +1575,6 @@ async function syncNotesAndAttachmentsFromGitHub(silent = false) {
   if (syncAttachmentsBtn) syncAttachmentsBtn.disabled = true;
   if (!silent || $('notesDlg')?.open) setNotesStatus('Suche und lade Dateien aus GitHub…');
   try {
-    // Erst notizen.json prüfen/aktualisieren
     try {
       const r = await githubRequest('GET', null, notesPath());
       if (r && r.content) {
@@ -1401,7 +1587,6 @@ async function syncNotesAndAttachmentsFromGitHub(silent = false) {
       }
     } catch(e) {}
 
-    // Zusätzlich direkt den attachments-Ordner auf GitHub scannen
     const basePath = githubConfig.path.trim().replace(/[^/]*$/, '');
     const attachmentsDir = basePath + 'attachments';
     const dirContents = await githubRequest('GET', null, attachmentsDir);
