@@ -52,7 +52,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 .att-dl:hover{text-decoration:underline}
 .att-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .att-size{color:var(--muted);font-size:.82rem;flex-shrink:0}
-.att-countdown{color:var(--danger);font-size:.82rem;font-weight:600;flex-shrink:0}
 .att-del{background:none;border:1px solid var(--line);width:26px;height:26px;border-radius:6px;color:var(--danger);font-size:.85rem;display:grid;place-items:center;flex-shrink:0}
 .att-del:hover{background:rgba(179,55,47,.1);border-color:var(--danger)}
 #notesStatus{margin:10px 0 0;font-size:.85rem;color:var(--muted)}
@@ -874,7 +873,7 @@ $('githubStopBtn').onclick=()=>{
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
 
-/* ---- Notizen & Dateianhänge (Mit automatischer Berechnungs- und Countdown-Logik) ---- */
+/* ---- Notizen & Dateianhänge ---- */
 const NOTES_KEY = 'startseite-notizen';
 let notes = loadNotes(), notesDirty = false, notesTimer = null, notesBusy = false, notesRetry = false;
 
@@ -978,10 +977,12 @@ async function downloadAttachmentFromGitHub(fileRef) {
     if (fileRef.data) { triggerFileDownload(fileRef); return; }
     throw Error('Kein Dateipfad auf GitHub hinterlegt.');
   }
-  
+
   setNotesStatus('Lade Datei von GitHub…');
   try {
+    let encodedContent = null;
     let res = null;
+
     try {
       res = await githubRequest('GET', null, fileRef.githubPath);
     } catch(e) {
@@ -989,29 +990,40 @@ async function downloadAttachmentFromGitHub(fileRef) {
       const dirContents = await githubRequest('GET', null, basePath + 'attachments');
       if (Array.isArray(dirContents)) {
         const found = dirContents.find(item => item.path === fileRef.githubPath);
-        if (found) {
-          res = await githubRequest('GET', null, found.path);
-        }
+        if (found) res = found;
       }
     }
 
-    if (!res || !res.content) {
-      throw Error('Datei auf GitHub noch nicht im Index verfügbar. Bitte Countdown abwarten.');
+    if (res && res.content) {
+      encodedContent = res.content;
+    } else if (res && res.sha) {
+      const p = githubConfig.repo.trim().split('/');
+      const blobUrl = 'https://api.github.com/repos/' + encodeURIComponent(p[0]) + '/' + encodeURIComponent(p[1]) + '/git/blobs/' + encodeURIComponent(res.sha) + '?_=' + Date.now();
+      const blobRes = await fetch(blobUrl, { headers: githubHeaders() });
+      const blobData = await blobRes.json().catch(() => ({}));
+      if (!blobRes.ok || !blobData.content) {
+        throw Error(blobData.message || 'Blob konnte nicht geladen werden (HTTP ' + blobRes.status + ').');
+      }
+      encodedContent = blobData.content;
     }
-    
-    const raw = JSON.parse(from64(res.content));
+
+    if (!encodedContent) {
+      throw Error('Datei auf GitHub nicht gefunden oder leer.');
+    }
+
+    const raw = JSON.parse(from64(encodedContent));
     let decryptedJson;
     if (raw && raw.format === ENC_FORMAT) {
       decryptedJson = await decryptText(raw, githubConfig.password);
     } else {
       throw Error('Unbekanntes Dateiformat.');
     }
-    
+
     const fileData = JSON.parse(decryptedJson);
     triggerFileDownload(fileData);
     setNotesStatus(notesIdleStatus());
   } catch(e) {
-    setNotesStatus('Hinweis: ' + e.message, true);
+    setNotesStatus('Download fehlgeschlagen: ' + e.message, true);
   }
 }
 
@@ -1061,29 +1073,18 @@ async function uploadAttachmentToGitHub(fileObj, base64Data) {
   
   await githubRequest('PUT', body, path);
   
-  // Berechne die geschätzte Verfügbarkeitszeit basierend auf der Dateigröße
-  // Faustregel: 3 Sekunden Grundzeit + ca. 45 Sekunden pro GB Upload/Indizierungszeit
-  const sizeInGb = (fileObj.size || 0) / (1024 * 1024 * 1024);
-  const estimatedSeconds = Math.max(5, Math.round(3 + (sizeInGb * 45)));
-  const availableAt = Date.now() + (estimatedSeconds * 1000);
-  
   return {
     name: fileObj.name,
     size: fileObj.size,
     type: fileObj.type,
-    githubPath: path,
-    availableAt: availableAt
+    githubPath: path
   };
 }
-
-let countdownInterval = null;
 
 function renderNotesAttachments(){
   const box = $('notesAttachments');
   if (!box) return;
   box.innerHTML = '';
-  
-  let hasPendingCountdowns = false;
 
   (notes.files || []).forEach((f, idx) => {
     const item = document.createElement('div');
@@ -1111,22 +1112,6 @@ function renderNotesAttachments(){
       sz.className = 'att-size';
       sz.textContent = '(' + formatBytes(f.size) + ')';
       dl.appendChild(sz);
-    }
-
-    // Countdown-Anzeige berechnen & einfügen, falls die geschätzte Zeit noch in der Zukunft liegt
-    const countdownSpan = document.createElement('span');
-    countdownSpan.className = 'att-countdown';
-    
-    const now = Date.now();
-    if (f.availableAt && f.availableAt > now) {
-      hasPendingCountdowns = true;
-      const remainingSecs = Math.ceil((f.availableAt - now) / 1000);
-      const mins = Math.floor(remainingSecs / 60);
-      const secs = remainingSecs % 60;
-      countdownSpan.textContent = `⏳ Verfügbar in ${mins}:${secs < 10 ? '0' : ''}${secs}`;
-      dl.appendChild(countdownSpan);
-    } else {
-      countdownSpan.textContent = '';
     }
 
     const del = document.createElement('button');
@@ -1162,23 +1147,6 @@ function renderNotesAttachments(){
     item.append(dl, del);
     box.appendChild(item);
   });
-
-  // Intervall steuern: Wenn Countdowns laufen, sekündlich UI auffrischen
-  if (hasPendingCountdowns) {
-    if (!countdownInterval) {
-      countdownInterval = setInterval(() => {
-        if ($('notesDlg').open) {
-          renderNotesAttachments();
-        } else {
-          clearInterval(countdownInterval);
-          countdownInterval = null;
-        }
-      }, 1000);
-    }
-  } else if (countdownInterval) {
-    clearInterval(countdownInterval);
-    countdownInterval = null;
-  }
 }
 
 async function notesDecode(r){
@@ -1331,7 +1299,7 @@ if (fileInElem) {
         
         notesDirty = true;
         notesPush();
-        setNotesStatus('Datei hochgeladen. Countdown für die Indexierung läuft.');
+        setNotesStatus('Datei erfolgreich hochgeladen.');
       } catch(e) {
         setNotesStatus('Fehler beim Hochladen der Datei: ' + e.message, true);
       }
