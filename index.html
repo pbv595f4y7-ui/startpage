@@ -48,14 +48,20 @@ button{font:inherit;color:inherit;cursor:pointer}
 #notesAttachments{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 #notesAttachments:empty{display:none}
 .att-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;font-size:.9rem}
-.att-dl{display:flex;align-items:center;gap:8px;min-width:0;flex:1;background:none;border:0;padding:0;color:var(--accent);text-align:left;font-weight:500}
-.att-dl:hover{text-decoration:underline}
+.att-info{display:flex;align-items:center;gap:8px;min-width:0;flex:1;color:var(--ink);font-weight:500}
+.att-info.clickable{background:none;border:0;padding:0;text-align:left;color:var(--accent)}
+.att-info.clickable:hover .att-name{text-decoration:underline}
 .att-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .att-size{color:var(--muted);font-size:.82rem;flex-shrink:0}
+.att-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.att-dl{background:none;border:1px solid var(--line);width:26px;height:26px;border-radius:6px;color:var(--accent);font-size:.9rem;display:grid;place-items:center;flex-shrink:0}
+.att-dl:hover{background:rgba(31,111,139,.1);border-color:var(--accent)}
 .att-del{background:none;border:1px solid var(--line);width:26px;height:26px;border-radius:6px;color:var(--danger);font-size:.85rem;display:grid;place-items:center;flex-shrink:0}
 .att-del:hover{background:rgba(179,55,47,.1);border-color:var(--danger)}
 #notesStatus{margin:10px 0 0;font-size:.85rem;color:var(--muted)}
 #notesStatus.err{color:var(--danger)}
+#filePreviewDlg{width:min(720px,94vw)}
+#filePreviewContent{margin:0;padding:12px;max-height:55dvh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px}
 .chk{display:flex;align-items:center;gap:10px;margin-bottom:10px;color:var(--ink)}
 .chk input{width:auto;margin:0;padding:0}
 .chk.off{color:var(--muted);opacity:.6}
@@ -208,7 +214,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     width: calc(100vw - 24px);
     max-width: 480px;
   }
-  #notesDlg {
+  #notesDlg, #filePreviewDlg {
     width: calc(100vw - 24px);
   }
   #notesText {
@@ -288,10 +294,21 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     <div class="row" style="justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
       <div style="display: flex; gap: 8px;">
         <button type="button" class="link-btn" id="notesUploadBtn">Datei anfügen…</button>
-        <button type="button" class="link-btn danger" id="notesClearAttachmentsBtn">Alle Anhänge löschen</button>
+        <button type="button" class="link-btn danger" id="notesClearAttachmentsBtn">Alle Dateien löschen</button>
       </div>
       <input type="file" id="notesFileIn" hidden>
       <button type="button" class="primary" id="notesClose">Schließen</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="filePreviewDlg">
+  <form method="dialog">
+    <h2 id="filePreviewTitle">Dateiinhalt</h2>
+    <pre id="filePreviewContent"></pre>
+    <div class="row">
+      <button type="button" class="link-btn" id="filePreviewCopyBtn">Inhalt kopieren</button>
+      <button type="button" class="primary" id="filePreviewCloseBtn">Schließen</button>
     </div>
   </form>
 </dialog>
@@ -860,7 +877,7 @@ $('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/
   githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
 $('githubStopBtn').onclick=()=>{
   if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
-  const keepLocal=confirm('Sollen the aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
+  const keepLocal=confirm('Sollen die aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
   githubConfig={...GITHUB_DEFAULTS};localStorage.removeItem(GITHUB_KEY);githubLast='';clearTimeout(githubTimer);
   if(keepLocal){
     saveLocal();
@@ -877,7 +894,8 @@ githubLoad();githubState(githubConfig.enabled?'active':'off');
 const NOTES_KEY = 'startseite-notizen';
 let notes = loadNotes(), notesDirty = false, notesTimer = null, notesBusy = false, notesRetry = false;
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; 
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const PREVIEW_MAX_BYTES = 250 * 1024;
 
 function cleanFiles(arr){
   return (Array.isArray(arr) ? arr : []).filter(f => f && typeof f.name === 'string' && (typeof f.githubPath === 'string' || typeof f.data === 'string'));
@@ -926,14 +944,19 @@ function formatBytes(b){
   return (b / 1048576).toFixed(1) + ' MB';
 }
 
+function decodeDataUrlBytes(dataUrl){
+  const parts = String(dataUrl || '').split(',');
+  const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'application/octet-stream';
+  const bin = atob(parts[1] || '');
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return { mime, bytes };
+}
+
 function triggerFileDownload(file){
   try {
-    const parts = file.data.split(',');
-    const mime = (parts[0].match(/:(.*?);/) || [])[1] || file.type || 'application/octet-stream';
-    const bin = atob(parts[1]);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], {type: mime});
+    const { mime, bytes } = decodeDataUrlBytes(file.data);
+    const blob = new Blob([bytes], {type: file.type || mime});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -950,6 +973,31 @@ function triggerFileDownload(file){
     a.click();
     a.remove();
   }
+}
+
+function isTextLikeFile(fileName, mimeType){
+  const name = String(fileName || '').toLowerCase();
+  const mime = String(mimeType || '').toLowerCase();
+  if (mime.startsWith('text/') || /json|xml|yaml|yml|csv|javascript|typescript|sql|sh|bat|ps1/.test(mime)) return true;
+  return /\.(txt|md|markdown|json|csv|tsv|log|xml|html|htm|css|js|mjs|cjs|ts|tsx|jsx|py|java|c|cpp|h|hpp|cs|go|rs|rb|php|sh|bash|zsh|ps1|yaml|yml|toml|ini|cfg|conf|env|svg|sql)$/i.test(name);
+}
+
+function openFilePreviewDialog(fileData){
+  const name = fileData.name || 'Datei';
+  $('filePreviewTitle').textContent = name + (fileData.size ? ' (' + formatBytes(fileData.size) + ')' : '');
+  let displayText = '';
+  try {
+    const { mime, bytes } = decodeDataUrlBytes(fileData.data);
+    if (isTextLikeFile(name, fileData.type || mime)) {
+      displayText = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    } else {
+      displayText = 'Dieses Dateiformat kann nicht als Text dargestellt werden.';
+    }
+  } catch(e) {
+    displayText = 'Inhalt konnte nicht gelesen werden: ' + e.message;
+  }
+  $('filePreviewContent').textContent = displayText;
+  $('filePreviewDlg').showModal();
 }
 
 function getNextAnonymousPath() {
@@ -972,58 +1020,73 @@ function getNextAnonymousPath() {
   return basePath + 'attachments/anhang' + padded + '.enc';
 }
 
-async function downloadAttachmentFromGitHub(fileRef) {
+async function fetchDecryptedAttachment(fileRef) {
   if (!fileRef.githubPath) {
-    if (fileRef.data) { triggerFileDownload(fileRef); return; }
+    if (fileRef.data) return fileRef;
     throw Error('Kein Dateipfad auf GitHub hinterlegt.');
   }
 
+  let encodedContent = null;
+  let res = null;
+
+  try {
+    res = await githubRequest('GET', null, fileRef.githubPath);
+  } catch(e) {
+    const basePath = githubConfig.path.trim().replace(/[^/]*$/, '');
+    const dirContents = await githubRequest('GET', null, basePath + 'attachments');
+    if (Array.isArray(dirContents)) {
+      const found = dirContents.find(item => item.path === fileRef.githubPath);
+      if (found) res = found;
+    }
+  }
+
+  if (res && res.content) {
+    encodedContent = res.content;
+  } else if (res && res.sha) {
+    const p = githubConfig.repo.trim().split('/');
+    const blobUrl = 'https://api.github.com/repos/' + encodeURIComponent(p[0]) + '/' + encodeURIComponent(p[1]) + '/git/blobs/' + encodeURIComponent(res.sha) + '?_=' + Date.now();
+    const blobRes = await fetch(blobUrl, { headers: githubHeaders() });
+    const blobData = await blobRes.json().catch(() => ({}));
+    if (!blobRes.ok || !blobData.content) {
+      throw Error(blobData.message || 'Blob konnte nicht geladen werden (HTTP ' + blobRes.status + ').');
+    }
+    encodedContent = blobData.content;
+  }
+
+  if (!encodedContent) {
+    throw Error('Datei auf GitHub nicht gefunden oder leer.');
+  }
+
+  const raw = JSON.parse(from64(encodedContent));
+  let decryptedJson;
+  if (raw && raw.format === ENC_FORMAT) {
+    decryptedJson = await decryptText(raw, githubConfig.password);
+  } else {
+    throw Error('Unbekanntes Dateiformat.');
+  }
+
+  return JSON.parse(decryptedJson);
+}
+
+async function downloadAttachmentFromGitHub(fileRef) {
   setNotesStatus('Lade Datei von GitHub…');
   try {
-    let encodedContent = null;
-    let res = null;
-
-    try {
-      res = await githubRequest('GET', null, fileRef.githubPath);
-    } catch(e) {
-      const basePath = githubConfig.path.trim().replace(/[^/]*$/, '');
-      const dirContents = await githubRequest('GET', null, basePath + 'attachments');
-      if (Array.isArray(dirContents)) {
-        const found = dirContents.find(item => item.path === fileRef.githubPath);
-        if (found) res = found;
-      }
-    }
-
-    if (res && res.content) {
-      encodedContent = res.content;
-    } else if (res && res.sha) {
-      const p = githubConfig.repo.trim().split('/');
-      const blobUrl = 'https://api.github.com/repos/' + encodeURIComponent(p[0]) + '/' + encodeURIComponent(p[1]) + '/git/blobs/' + encodeURIComponent(res.sha) + '?_=' + Date.now();
-      const blobRes = await fetch(blobUrl, { headers: githubHeaders() });
-      const blobData = await blobRes.json().catch(() => ({}));
-      if (!blobRes.ok || !blobData.content) {
-        throw Error(blobData.message || 'Blob konnte nicht geladen werden (HTTP ' + blobRes.status + ').');
-      }
-      encodedContent = blobData.content;
-    }
-
-    if (!encodedContent) {
-      throw Error('Datei auf GitHub nicht gefunden oder leer.');
-    }
-
-    const raw = JSON.parse(from64(encodedContent));
-    let decryptedJson;
-    if (raw && raw.format === ENC_FORMAT) {
-      decryptedJson = await decryptText(raw, githubConfig.password);
-    } else {
-      throw Error('Unbekanntes Dateiformat.');
-    }
-
-    const fileData = JSON.parse(decryptedJson);
+    const fileData = await fetchDecryptedAttachment(fileRef);
     triggerFileDownload(fileData);
     setNotesStatus(notesIdleStatus());
   } catch(e) {
     setNotesStatus('Download fehlgeschlagen: ' + e.message, true);
+  }
+}
+
+async function previewAttachmentFromGitHub(fileRef) {
+  setNotesStatus('Lade Dateiinhalt…');
+  try {
+    const fileData = await fetchDecryptedAttachment(fileRef);
+    setNotesStatus(notesIdleStatus());
+    openFilePreviewDialog(fileData);
+  } catch(e) {
+    setNotesStatus('Anzeige fehlgeschlagen: ' + e.message, true);
   }
 }
 
@@ -1090,10 +1153,42 @@ function renderNotesAttachments(){
     const item = document.createElement('div');
     item.className = 'att-item';
 
+    const canPreview = typeof f.size === 'number' && f.size <= PREVIEW_MAX_BYTES && isTextLikeFile(f.name, f.type);
+    const info = canPreview ? document.createElement('button') : document.createElement('div');
+    info.className = 'att-info' + (canPreview ? ' clickable' : '');
+    if (canPreview) {
+      info.type = 'button';
+      info.title = 'Inhalt von ' + f.name + ' anzeigen';
+      info.onclick = async () => {
+        if (f.githubPath) {
+          await previewAttachmentFromGitHub(f);
+        } else if (f.data) {
+          openFilePreviewDialog(f);
+        }
+      };
+    }
+
+    const nm = document.createElement('span');
+    nm.className = 'att-name';
+    nm.textContent = '📎 ' + f.name;
+    info.appendChild(nm);
+
+    if (f.size) {
+      const sz = document.createElement('span');
+      sz.className = 'att-size';
+      sz.textContent = '(' + formatBytes(f.size) + ')';
+      info.appendChild(sz);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'att-actions';
+
     const dl = document.createElement('button');
     dl.type = 'button';
     dl.className = 'att-dl';
+    dl.textContent = '↓';
     dl.title = f.name + ' herunterladen und entschlüsseln';
+    dl.setAttribute('aria-label', f.name + ' herunterladen');
     dl.onclick = async () => {
       if (f.githubPath) {
         await downloadAttachmentFromGitHub(f);
@@ -1102,26 +1197,16 @@ function renderNotesAttachments(){
       }
     };
 
-    const nm = document.createElement('span');
-    nm.className = 'att-name';
-    nm.textContent = '📎 ' + f.name;
-    dl.appendChild(nm);
-
-    if (f.size) {
-      const sz = document.createElement('span');
-      sz.className = 'att-size';
-      sz.textContent = '(' + formatBytes(f.size) + ')';
-      dl.appendChild(sz);
-    }
-
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'att-del';
     del.textContent = '✕';
-    del.title = 'Anhang löschen';
+    del.title = 'Datei löschen';
     del.setAttribute('aria-label', f.name + ' löschen');
     
     del.onclick = async () => {
+      if (!confirm('Soll die Datei "' + f.name + '" wirklich gelöscht werden?')) return;
+
       const fileRef = notes.files[idx];
       notes.files.splice(idx, 1);
       notes.updated = Date.now();
@@ -1144,7 +1229,8 @@ function renderNotesAttachments(){
       }
     };
 
-    item.append(dl, del);
+    actions.append(dl, del);
+    item.append(info, actions);
     box.appendChild(item);
   });
 }
@@ -1237,7 +1323,7 @@ if (clearAttachmentsBtn) {
       setNotesStatus('Funktion nicht verfügbar: Kein verschlüsselter GitHub-Sync aktiv.', true);
       return;
     }
-    if (!confirm('Wirklich alle Anhänge (lokal und auf GitHub inklusive aller verwaisten Dateien) unwiderruflich löschen?')) {
+    if (!confirm('Wirklich alle Dateien (lokal und auf GitHub inklusive aller verwaisten Dateien) unwiderruflich löschen?')) {
       return;
     }
 
@@ -1266,7 +1352,7 @@ if (clearAttachmentsBtn) {
       
       notesDirty = true;
       notesPush();
-      setNotesStatus('Alle Dateianhänge und verwaisten Dateien wurden erfolgreich gelöscht.');
+      setNotesStatus('Alle Dateien und verwaisten Dateien wurden erfolgreich gelöscht.');
     } catch(e) {
       setNotesStatus('Fehler beim Bereinigen des Ordners: ' + e.message, true);
     }
@@ -1307,6 +1393,15 @@ if (fileInElem) {
     reader.readAsDataURL(f);
   };
 }
+
+$('filePreviewCopyBtn').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('filePreviewContent').textContent || '');
+    $('filePreviewCopyBtn').textContent = 'Kopiert';
+    setTimeout(() => { $('filePreviewCopyBtn').textContent = 'Inhalt kopieren'; }, 1500);
+  } catch(e) {}
+};
+$('filePreviewCloseBtn').onclick = () => $('filePreviewDlg').close();
 
 const notesTextElem = $('notesText');
 if (notesTextElem) {
