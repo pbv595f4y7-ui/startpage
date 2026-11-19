@@ -27,8 +27,8 @@
 })();
 </script>
 <style>
-:root{--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;color-scheme:dark}}
+:root{--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;--pos:#4ade80;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:16px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
@@ -74,10 +74,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 0 5px 1px rgba(34,197,94,.7)}
 .sync-dot.err{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.25),0 0 5px 1px rgba(239,68,68,.7)}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
-#syncBtn .status.active,#githubBtn .status.active{color:#16803a;font-weight:700}
-#syncBtn .status.inactive,#githubBtn .status.inactive{color:var(--danger);font-weight:700}
+#syncBtn .status.active,#githubBtn .status.active,#finnhubBtn .status.active{color:#16803a;font-weight:700}
+#syncBtn .status.inactive,#githubBtn .status.inactive,#finnhubBtn .status.inactive{color:var(--danger);font-weight:700}
 .gh-check{display:flex;align-items:center;gap:8px;color:var(--ink)} .gh-check input{width:auto;margin:0}
-#githubMessage{min-height:1.3em;font-size:.88rem;color:var(--muted)} #githubMessage.error{color:var(--danger)} #githubMessage.ok{color:#16803a}
+#githubMessage,#finnhubMessage{min-height:1.3em;font-size:.88rem;color:var(--muted)}
+#githubMessage.error,#finnhubMessage.error{color:var(--danger)}
+#githubMessage.ok,#finnhubMessage.ok{color:#16803a}
 
 .link-btn:hover,.link-btn[aria-pressed=true]{color:var(--ink);border-color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -96,26 +98,44 @@ button{font:inherit;color:inherit;cursor:pointer}
 .col.over-col{outline:2px dashed var(--accent);outline-offset:8px;border-radius:12px}
 .tile,.add{margin-bottom:8px}
 .tile{position:relative}
-.tile a,.tile button.folder-btn,.add{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink);text-align:left;transition:transform .12s,border-color .12s}
-.tile a:hover,.tile button.folder-btn:hover,.add:hover{transform:translateY(-1px);border-color:var(--accent)}
-.folder-count{color:var(--muted);font-size:.82rem;flex-shrink:0}
+.tile a,.tile .folder-btn,.add{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink);transition:transform .12s,border-color .12s;width:100%;text-align:left}
+.tile a:hover,.tile .folder-btn:hover,.add:hover{transform:translateY(-1px);border-color:var(--accent)}
 .ico{flex:none;width:30px;height:30px;display:grid;place-items:center;font-weight:600;color:var(--accent)}
 .ico.letter{border-radius:8px;background:var(--bg)}
 .ico.symbol{border-radius:8px;background:var(--bg);font-size:1.15rem;line-height:1}
 .ico.symbol svg{width:20px;height:20px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ico img{width:28px;height:28px;object-fit:contain;border-radius:4px}
 .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Aktienkurs-Anzeige im Link-Button */
+.stock-quote{display:flex;align-items:baseline;gap:6px;font-size:.84rem;font-variant-numeric:tabular-nums;flex-shrink:0;margin-left:auto}
+.stock-price{font-weight:600;color:var(--ink)}
+.stock-chg{font-weight:600;font-size:.8rem;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--muted)}
+.stock-chg.pos{color:var(--pos);background:rgba(22,128,58,.12)}
+.stock-chg.neg{color:var(--danger);background:rgba(179,55,47,.12)}
+.stock-loading{color:var(--muted);font-size:.8rem}
+
+/* Favoriten-Ordner */
+.folder-caret{font-size:.75rem;color:var(--muted);transition:transform .15s;flex-shrink:0}
+.tile.folder-open .folder-caret{transform:rotate(90deg)}
+.folder-children{margin:6px 0 4px 16px;padding-left:10px;border-left:2px solid var(--line)}
+.folder-children .tile{margin-bottom:6px}
+.folder-children .tile:last-child{margin-bottom:0}
+.folder-children .tile a{height:40px;font-size:.94rem}
+.folder-add-sub{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;margin-top:6px;background:transparent;border:1px dashed var(--line);border-radius:10px;color:var(--muted);width:100%;font-size:.86rem}
+.folder-add-sub:hover{border-color:var(--accent);color:var(--ink)}
+
 .add{border-style:dashed;background:transparent;color:var(--muted);width:100%;font-size:.95rem}
 .add b{flex:none;width:30px;font-size:1.5rem;font-weight:400;line-height:1;text-align:center}
-.tools{display:none;position:absolute;top:-8px;right:-6px;gap:4px}
+.tools{display:none;position:absolute;top:-8px;right:-6px;gap:4px;z-index:2}
 .editing .tools{display:flex}
 .tools button{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:.8rem;line-height:1;display:grid;place-items:center}
 .tools .del{color:var(--danger)}
 .tools .mob-move{display:none}
-.editing .tile a,.editing .tile button.folder-btn{pointer-events:none}
+.editing .tile a,.editing .tile .folder-btn{pointer-events:none}
 .editing .tile{cursor:grab}
 .tile.dragging{opacity:.4}
-.tile.over a,.tile.over button.folder-btn{border-color:var(--accent);border-style:dashed}
+.tile.over > a,.tile.over > .folder-btn{border-color:var(--accent);border-style:dashed}
 dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(420px,92vw);max-height:90dvh;overflow-y:auto}
 dialog::backdrop{background:rgba(10,15,20,.5)}
 dialog h2{margin:0 0 16px;font-size:1.15rem}
@@ -132,23 +152,6 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
 .ico-choice svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ico-choice:hover,.ico-choice.active{border-color:var(--accent);background:rgba(31,111,139,.12);color:var(--accent)}
 .field-hint{font-size:.8rem;color:var(--muted);margin:-6px 0 12px}
-.folder-list{display:flex;flex-direction:column;gap:8px;margin:12px 0}
-.folder-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:10px}
-.folder-row a{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-decoration:none;color:var(--ink)}
-.folder-row a:hover .name{color:var(--accent)}
-.folder-row-actions{display:flex;gap:6px;flex-shrink:0}
-.mini-btn{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:.82rem;color:var(--muted)}
-.mini-btn:hover{color:var(--ink);border-color:var(--accent)}
-.mini-btn.del{color:var(--danger)}
-.mini-btn.del:hover{border-color:var(--danger)}
-.folder-chev{flex-shrink:0;width:12px;text-align:center;color:var(--muted);font-size:.8rem}
-.tile.folder-open>button.folder-btn{border-color:var(--accent)}
-.tile.over-into a,.tile.over-into button.folder-btn{border-color:var(--accent);background:rgba(31,111,139,.12)}
-.sub{margin:-2px 0 8px 14px;padding-left:10px;border-left:2px solid var(--line)}
-.sub.over-sub{border-left-color:var(--accent)}
-.sub .tile,.sub .add{margin-bottom:6px}
-.sub .tile a,.sub .tile button.folder-btn,.sub .add{height:40px}
-.sub-empty{margin:4px 0 10px;color:var(--muted);font-size:.88rem}
 @media (prefers-color-scheme:dark){.primary{color:#0e1419}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
@@ -204,22 +207,22 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   .col h2:empty {
     display: none;
   }
-  .tile a, .tile button.folder-btn, .add {
+  .tile a, .tile .folder-btn, .add {
     height: 48px;
     padding: 0 14px;
   }
-  .tile a:hover, .tile button.folder-btn:hover, .add:hover {
+  .tile a:hover, .tile .folder-btn:hover, .add:hover {
     transform: none;
   }
-  .tile a:active, .tile button.folder-btn:active, .add:active {
+  .tile a:active, .tile .folder-btn:active, .add:active {
     background: var(--bg);
     border-color: var(--accent);
   }
-  .editing .tile a, .editing .tile button.folder-btn {
+  .editing .tile > a, .editing .tile > .folder-btn {
     padding-right: 136px;
   }
   .tools {
-    top: 50%;
+    top: 24px;
     right: 8px;
     transform: translateY(-50%);
     gap: 6px;
@@ -266,13 +269,14 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
       <div class="greet-row"><h1 id="greet">Hallo</h1><button class="icon-btn" id="notesBtn" type="button" title="Notizen" aria-label="Notizen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M8.5 10h7M8.5 14h7M8.5 17.5h4"/></svg></button></div>
       <div id="date"></div>
     </div>
-    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden>v1.0.2</span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
+    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden>v1.2.0</span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
   </header>
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
     <button class="link-btn" id="importBtn">Importieren</button>
     <button class="link-btn" id="syncBtn">Sync-Datei</button>
     <button class="link-btn" id="githubBtn">GitHub-Sync</button>
+    <button class="link-btn" id="finnhubBtn">Finnhub-API</button>
     <button class="link-btn danger" id="clearBtn">Alle Einträge löschen</button>
     <span class="hint">Einträge ziehen, um sie zu sortieren – auch in andere Spalten</span>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -289,21 +293,33 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
         <span>Vorschau</span>
       </div>
     </div>
-    <label>Typ
+    <label id="fTypeRow">Typ
       <select id="fType">
-        <option value="link">Favorit (Link)</option>
-        <option value="folder">Favoritenordner</option>
+        <option value="link">Favorit</option>
+        <option value="folder">FavoritOrdner</option>
+        <option value="stock">Aktiensymbol</option>
       </select>
     </label>
-    <label>Name<input id="fName" required maxlength="40" autocomplete="off"></label>
-    <label id="fUrlRow">Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
-    <label>Favicon-Quelle
-      <select id="fIconMode">
-        <option value="auto">Automatisch (von Zieladresse)</option>
-        <option value="site">Von einer Webseite</option>
-        <option value="icon">Icon / Symbol auswählen</option>
-      </select>
-    </label>
+    <label id="fNameRow"><span id="fNameLabel">Name</span><input id="fName" maxlength="40" autocomplete="off"></label>
+    <div id="fUrlRow">
+      <label>Adresse<input id="fUrl" placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
+    </div>
+    <div id="fStockRow" hidden>
+      <label>Aktiensymbol (Finnhub / Yahoo Finance)
+        <input id="fSymbol" maxlength="20" placeholder="z. B. AAPL, MSFT, NVDA, SAP.DE" autocomplete="off" style="text-transform:uppercase">
+      </label>
+      <p class="field-hint">Kurs &amp; Tagesänderung werden über Finnhub geladen (alle 2 Min.). Klick öffnet finance.yahoo.com.</p>
+      <p class="field-hint" id="fStockKeyWarn" style="color:var(--danger)" hidden>Hinweis: Es ist noch kein Finnhub API-Key hinterlegt (über „Bearbeiten → Finnhub-API“ einrichten).</p>
+    </div>
+    <div id="fIconModeRow">
+      <label>Favicon-Quelle
+        <select id="fIconMode">
+          <option value="auto">Automatisch (von Zieladresse)</option>
+          <option value="site">Von einer Webseite</option>
+          <option value="icon">Icon / Symbol auswählen</option>
+        </select>
+      </label>
+    </div>
     <div id="fIconSiteRow" hidden>
       <label>Webseite oder Bild-URL für Favicon
         <input id="fIconSite" placeholder="z. B. wikipedia.org oder https://.../icon.png" autocomplete="off" inputmode="url">
@@ -322,6 +338,26 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     <div class="row">
       <button type="button" class="link-btn" id="cancel">Abbrechen</button>
       <button class="primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="finnhubDlg">
+  <form method="dialog">
+    <h2>Finnhub Aktienkurse</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0">Für Live-Aktienkurse direkt im Browser wird ein kostenloser API-Key von <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">finnhub.io</a> benötigt. Der Key wird ausschließlich lokal in diesem Browser gespeichert.</p>
+    <label>Finnhub API-Key
+      <input id="finnhubKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="z. B. ct1234567890abcdef…">
+    </label>
+    <p style="color:var(--muted);font-size:.82rem;margin:-4px 0 12px">Automatische Aktualisierung: alle 2 Minuten (60 Abrufe/Minute im kostenlosen Plan verfügbar).</p>
+    <p id="finnhubMessage"></p>
+    <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+      <button type="button" class="link-btn" id="finnhubTestBtn">API-Key testen</button>
+      <button type="button" class="link-btn danger" id="finnhubClearBtn">Key entfernen</button>
+    </div>
+    <div class="row">
+      <button type="button" class="link-btn" id="finnhubCancelBtn">Abbrechen</button>
+      <button type="button" class="primary" id="finnhubSaveBtn">Speichern</button>
     </div>
   </form>
 </dialog>
@@ -409,7 +445,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   </form>
 </dialog>
 <script>
-const APP_VERSION = 'v1.0.2';
+const APP_VERSION = 'v1.2.0';
 const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
 const SETTINGS_DB = 'startseite-startdatei-v1', SETTINGS_STORE = 'settings';
 const $ = id => document.getElementById(id);
@@ -420,6 +456,7 @@ const PRESET_ICONS = {
   'svg:server': { label: 'Server', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="17" r="1"/></svg>' },
   'svg:globe': { label: 'Web', svg: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>' },
   'svg:folder': { label: 'Ordner', svg: '<svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg>' },
+  'svg:chart': { label: 'Aktie / Chart', svg: '<svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>' },
   'svg:cloud': { label: 'Cloud', svg: '<svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>' },
   'svg:play': { label: 'Medien', svg: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><polygon points="10 8.5 16 12 10 15.5 10 8.5"/></svg>' },
   'svg:music': { label: 'Musik', svg: '<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
@@ -442,21 +479,29 @@ function normalize(u){
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   try { return new URL(u).href; } catch(e){ return null; }
 }
-function cleanEntry(x){
-  if (!x || typeof x !== 'object' || typeof x.name !== 'string') return null;
-  const name = x.name.trim().slice(0, 40);
-  if (x.type === 'folder') {
-    const folder = {type: 'folder', name: name || 'Ordner', items: cleanItems(x.items)};
+function yahooQuoteUrl(symbol){
+  return 'https://finance.yahoo.com/quote/' + encodeURIComponent(String(symbol || '').trim().toUpperCase());
+}
+function cleanLeafItem(x){
+  if (!x || typeof x !== 'object') return null;
+  if (x.type === 'stock' && typeof x.symbol === 'string' && x.symbol.trim()) {
+    const sym = x.symbol.trim().toUpperCase().slice(0, 20);
+    const entry = {
+      type: 'stock',
+      symbol: sym,
+      name: (typeof x.name === 'string' && x.name.trim()) ? x.name.trim().slice(0, 40) : sym,
+      url: yahooQuoteUrl(sym)
+    };
     if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
-      folder.iconMode = x.iconMode;
-      folder.iconValue = x.iconValue.trim().slice(0, 500);
+      entry.iconMode = x.iconMode;
+      entry.iconValue = x.iconValue.trim().slice(0, 500);
     }
-    return folder;
+    return entry;
   }
-  if (typeof x.url === 'string') {
+  if (typeof x.name === 'string' && typeof x.url === 'string') {
     const u = normalize(x.url);
     if (u) {
-      const entry = {name: name || u, url: u};
+      const entry = {name: x.name.trim().slice(0, 40) || u, url: u};
       if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
         entry.iconMode = x.iconMode;
         entry.iconValue = x.iconValue.trim().slice(0, 500);
@@ -466,16 +511,27 @@ function cleanEntry(x){
   }
   return null;
 }
-function cleanItems(list){
+function cleanItems(list, allowFolders = true){
   const out = [];
   (Array.isArray(list) ? list : []).forEach(x => {
-    const cleaned = cleanEntry(x);
-    if (cleaned) out.push(cleaned);
+    if (!x || typeof x !== 'object') return;
+    if (allowFolders && x.type === 'folder' && typeof x.name === 'string') {
+      const folder = {
+        type: 'folder',
+        name: x.name.trim().slice(0, 40) || 'Ordner',
+        items: cleanItems(x.items, false)
+      };
+      if (x.iconMode === 'icon' && typeof x.iconValue === 'string' && x.iconValue.trim()) {
+        folder.iconMode = 'icon';
+        folder.iconValue = x.iconValue.trim().slice(0, 500);
+      }
+      out.push(folder);
+      return;
+    }
+    const leaf = cleanLeafItem(x);
+    if (leaf) out.push(leaf);
   });
   return out;
-}
-function countEntries(list){
-  return (Array.isArray(list) ? list : []).reduce((n, it) => n + (it && it.type === 'folder' ? countEntries(it.items) : 1), 0);
 }
 function fromData(v){
   const cols = emptyCols();
@@ -501,7 +557,7 @@ function load(){
   return c;
 }
 function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify({columns: cols})); } catch(e){} }
-function persist(){ saveLocal(); syncSchedule(); githubSchedule(); }
+function persist(){ saveLocal(); syncSchedule(); githubSchedule(); refreshAllStocks(); }
 
 
 function settingsDb(){
@@ -536,8 +592,235 @@ async function settingsSet(key, value){
     tx.oncomplete = resolve; tx.onerror = () => reject(req.error);
   });
 }
-let cols = load(), editing = false, editCol = 0, editIdx = -1, editFolder = null, drag = null;
-const openFolders = new WeakSet();
+
+let cols = load(), editing = false, editCol = 0, editIdx = -1, editSubIdx = -1, drag = null;
+const openFolders = new Set();
+
+/* ---- Finnhub Kursabfrage (Aktualisierung alle 2 Minuten) ---- */
+const FINNHUB_KEY_STORAGE = 'startseite-finnhub-key-v1';
+const STOCK_REFRESH_MS = 2 * 60 * 1000; // 2 Minuten
+let finnhubApiKey = (localStorage.getItem(FINNHUB_KEY_STORAGE) || '').trim();
+const stockCache = new Map();
+const stockInFlight = new Map();
+
+function updateFinnhubBtnState(){
+  const btn = $('finnhubBtn');
+  if (!btn) return;
+  btn.replaceChildren(document.createTextNode('Finnhub-API: '));
+  const sp = document.createElement('span');
+  if (finnhubApiKey) {
+    sp.className = 'status active';
+    sp.textContent = 'aktiv';
+    btn.title = 'Finnhub API-Key hinterlegt (Aktualisierung alle 2 Min.)';
+  } else {
+    sp.className = 'status inactive';
+    sp.textContent = 'Key fehlt';
+    btn.title = 'Klicken, um deinen kostenlosen Finnhub API-Key einzutragen';
+  }
+  btn.appendChild(sp);
+}
+
+function finnhubMsg(text, cls = ''){
+  const el = $('finnhubMessage');
+  if (!el) return;
+  el.textContent = text;
+  el.className = cls;
+}
+
+$('finnhubBtn').onclick = () => {
+  $('finnhubKeyInput').value = finnhubApiKey;
+  finnhubMsg(finnhubApiKey ? 'API-Key ist gespeichert.' : 'Noch kein API-Key hinterlegt.');
+  $('finnhubDlg').showModal();
+  $('finnhubKeyInput').focus();
+};
+$('finnhubCancelBtn').onclick = () => $('finnhubDlg').close();
+$('finnhubClearBtn').onclick = () => {
+  finnhubApiKey = '';
+  localStorage.removeItem(FINNHUB_KEY_STORAGE);
+  $('finnhubKeyInput').value = '';
+  stockCache.clear();
+  updateFinnhubBtnState();
+  finnhubMsg('API-Key wurde entfernt.');
+  render();
+};
+$('finnhubTestBtn').onclick = async () => {
+  const testKey = $('finnhubKeyInput').value.trim();
+  if (!testKey) {
+    finnhubMsg('Bitte zuerst einen API-Key eingeben.', 'error');
+    return;
+  }
+  finnhubMsg('Teste Verbindung zu Finnhub (AAPL)…');
+  try {
+    const res = await fetch('https://finnhub.io/api/v1/quote?symbol=AAPL&token=' + encodeURIComponent(testKey), {cache: 'no-store'});
+    if (res.status === 401 || res.status === 403) {
+      finnhubMsg('Ungültiger API-Key (Zugriff verweigert).', 'error');
+      return;
+    }
+    if (!res.ok) {
+      finnhubMsg('Finnhub-Fehler: HTTP ' + res.status, 'error');
+      return;
+    }
+    const data = await res.json();
+    if (data && typeof data.c === 'number' && data.c > 0) {
+      finnhubMsg('Verbindung erfolgreich! Testkurs AAPL: ' + data.c.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'ok');
+    } else {
+      finnhubMsg('Antwort erhalten, aber kein Kurs gefunden. Bitte Key prüfen.', 'error');
+    }
+  } catch(e) {
+    finnhubMsg('Netzwerkfehler: ' + e.message, 'error');
+  }
+};
+$('finnhubSaveBtn').onclick = () => {
+  finnhubApiKey = $('finnhubKeyInput').value.trim();
+  if (finnhubApiKey) {
+    localStorage.setItem(FINNHUB_KEY_STORAGE, finnhubApiKey);
+  } else {
+    localStorage.removeItem(FINNHUB_KEY_STORAGE);
+  }
+  stockCache.clear();
+  updateFinnhubBtnState();
+  $('finnhubDlg').close();
+  render();
+  refreshAllStocks(true);
+};
+
+function formatStockPrice(price, symbol){
+  if (typeof price !== 'number' || !isFinite(price)) return '';
+  const num = price.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const sym = String(symbol || '').toUpperCase();
+  // Heuristik für gängige Börsenkürzel
+  let cur = '$';
+  if (/\.(DE|F|MU|BE|DU|HM|HA|PA|AS|MI|MC|VI|BR|LS|HE)$/i.test(sym)) cur = '€';
+  else if (/\.SW$/i.test(sym)) cur = 'CHF';
+  else if (/\.L$/i.test(sym)) cur = '£';
+  else if (/\.T$/i.test(sym)) cur = '¥';
+  else if (sym.startsWith('^') || sym.includes(':')) cur = '';
+  return cur ? (num + ' ' + cur) : num;
+}
+
+function formatStockChange(pct){
+  if (typeof pct !== 'number' || !isFinite(pct)) return '';
+  const sign = pct > 0 ? '+' : '';
+  return sign + pct.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' %';
+}
+
+async function fetchFinnhubQuote(symbol){
+  const sym = String(symbol || '').trim().toUpperCase();
+  if (!sym) return null;
+  if (!finnhubApiKey) return {noKey: true, ts: Date.now()};
+
+  const cached = stockCache.get(sym);
+  if (cached && !cached.error && !cached.noKey && (Date.now() - cached.ts) < (STOCK_REFRESH_MS - 5000)) {
+    return cached;
+  }
+  if (stockInFlight.has(sym)) return stockInFlight.get(sym);
+
+  const url = 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(sym) + '&token=' + encodeURIComponent(finnhubApiKey);
+
+  const promise = (async () => {
+    try {
+      const resp = await fetch(url, {cache: 'no-store'});
+      if (resp.status === 401 || resp.status === 403) {
+        return {error: 'API-Key ungültig', ts: Date.now()};
+      }
+      if (resp.status === 429) {
+        return cached && !cached.error ? cached : {error: 'Rate-Limit erreicht', ts: Date.now()};
+      }
+      if (!resp.ok) {
+        return cached && !cached.error ? cached : {error: 'HTTP ' + resp.status, ts: Date.now()};
+      }
+      const data = await resp.json();
+      // Finnhub liefert c = current price, dp = percent change, d = change, pc = previous close
+      if (data && typeof data.c === 'number' && data.c > 0) {
+        let changePct = typeof data.dp === 'number' ? data.dp : null;
+        if (changePct === null && typeof data.pc === 'number' && data.pc !== 0) {
+          changePct = ((data.c - data.pc) / data.pc) * 100;
+        }
+        const parsed = {
+          price: data.c,
+          changePct,
+          ts: Date.now()
+        };
+        stockCache.set(sym, parsed);
+        return parsed;
+      }
+      return {error: 'Symbol nicht gefunden', ts: Date.now()};
+    } catch(e) {
+      return cached && !cached.error ? cached : {error: 'Netzwerkfehler', ts: Date.now()};
+    }
+  })().finally(() => {
+    stockInFlight.delete(sym);
+  });
+
+  stockInFlight.set(sym, promise);
+  return promise;
+}
+
+function updateStockBadgeDom(badgeEl, symbol, quote){
+  if (!badgeEl) return;
+  badgeEl.innerHTML = '';
+  if (!quote) {
+    const ld = document.createElement('span');
+    ld.className = 'stock-loading';
+    ld.textContent = '…';
+    badgeEl.appendChild(ld);
+    return;
+  }
+  if (quote.noKey) {
+    const nk = document.createElement('span');
+    nk.className = 'stock-loading';
+    nk.textContent = 'API-Key fehlt';
+    nk.title = 'Bitte unter „Bearbeiten → Finnhub-API“ deinen kostenlosen API-Key eintragen';
+    badgeEl.appendChild(nk);
+    return;
+  }
+  if (quote.error || typeof quote.price !== 'number') {
+    const err = document.createElement('span');
+    err.className = 'stock-loading';
+    err.textContent = 'n/v';
+    err.title = 'Kurs für ' + symbol + ' nicht verfügbar (' + (quote.error || 'Fehler') + ') – Klick öffnet Yahoo Finance';
+    badgeEl.appendChild(err);
+    return;
+  }
+  const pr = document.createElement('span');
+  pr.className = 'stock-price';
+  pr.textContent = formatStockPrice(quote.price, symbol);
+  badgeEl.appendChild(pr);
+
+  if (typeof quote.changePct === 'number') {
+    const ch = document.createElement('span');
+    ch.className = 'stock-chg ' + (quote.changePct > 0.0001 ? 'pos' : (quote.changePct < -0.0001 ? 'neg' : ''));
+    ch.textContent = formatStockChange(quote.changePct);
+    badgeEl.appendChild(ch);
+  }
+}
+
+function collectStockSymbols(){
+  const syms = new Set();
+  cols.forEach(col => {
+    col.items.forEach(it => {
+      if (it.type === 'stock' && it.symbol) syms.add(it.symbol.toUpperCase());
+      if (it.type === 'folder' && Array.isArray(it.items)) {
+        it.items.forEach(sub => {
+          if (sub.type === 'stock' && sub.symbol) syms.add(sub.symbol.toUpperCase());
+        });
+      }
+    });
+  });
+  return Array.from(syms);
+}
+
+async function refreshAllStocks(force = false){
+  const syms = collectStockSymbols();
+  if (!syms.length) return;
+  if (force) syms.forEach(s => stockCache.delete(s));
+  await Promise.all(syms.map(async sym => {
+    const q = await fetchFinnhubQuote(sym);
+    document.querySelectorAll('.stock-quote[data-symbol="' + CSS.escape(sym) + '"]').forEach(el => {
+      updateStockBadgeDom(el, sym, q);
+    });
+  }));
+}
 
 function render(){
   const root = $('cols');
@@ -561,18 +844,19 @@ function render(){
     if (editing) {
       el.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('over-col'); });
       el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over-col'); });
-      el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over-col'); moveTo(cols[c].items, cols[c].items.length); });
+      el.addEventListener('drop', e => { e.preventDefault(); moveTo(c, cols[c].items.length); });
     }
-    col.items.forEach((it, i) => appendTile(list, c, i, it, null));
+    col.items.forEach((it, i) => list.appendChild(makeTile(c, i, it, -1)));
     let add = null;
     if (editing) {
       add = document.createElement('button'); add.className = 'add';
-      add.innerHTML = '<b>+</b><span>Favorit oder Ordner</span>';
-      add.onclick = () => openDlg(c, -1, null);
+      add.innerHTML = '<b>+</b><span>Favorit hinzufügen</span>';
+      add.onclick = () => openDlg(c, -1, -1);
     }
     if (add && !col.items.length) el.append(add, list); else el.append(list, ...(add ? [add] : []));
     root.appendChild(el);
   });
+  refreshAllStocks();
 }
 
 function isDirectImageUrl(u){
@@ -597,12 +881,22 @@ function iconSources(it, host){
     const customList = siteIconSources(it.iconValue);
     if (customList.length) return customList;
   }
-  return host ? ['https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host)] : [];
+  return ['https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host)];
 }
 
 function renderIconElement(ico, it){
   ico.className = 'ico';
   ico.innerHTML = '';
+  if (it.type === 'folder' && !(it.iconMode === 'icon' && it.iconValue)) {
+    ico.classList.add('symbol');
+    ico.innerHTML = PRESET_ICONS['svg:folder'].svg;
+    return;
+  }
+  if (it.type === 'stock' && !(it.iconMode === 'site' || it.iconMode === 'icon')) {
+    ico.classList.add('symbol');
+    ico.innerHTML = PRESET_ICONS['svg:chart'].svg;
+    return;
+  }
   if (it.iconMode === 'icon' && it.iconValue) {
     ico.classList.add('symbol');
     if (PRESET_ICONS[it.iconValue]) {
@@ -612,15 +906,10 @@ function renderIconElement(ico, it){
     }
     return;
   }
-  if (it.type === 'folder' && !it.iconMode) {
-    ico.classList.add('symbol');
-    ico.innerHTML = PRESET_ICONS['svg:folder'].svg;
-    return;
-  }
   let host = '';
-  try { if (it.url) host = new URL(it.url).hostname; } catch(e){}
+  try { host = new URL(it.url).hostname; } catch(e){}
   const srcs = host ? iconSources(it, host) : (it.iconMode === 'site' && it.iconValue ? siteIconSources(it.iconValue) : []);
-  const fallbackChar = (it.name || host || '?').trim().charAt(0).toUpperCase() || '?';
+  const fallbackChar = (it.name || it.symbol || host || '?').trim().charAt(0).toUpperCase() || '?';
   if (!srcs.length) {
     ico.textContent = fallbackChar;
     ico.classList.add('letter');
@@ -637,145 +926,125 @@ function renderIconElement(ico, it){
   ico.appendChild(img);
 }
 
-function moveStep(arr, i, dir){
-  const target = i + dir;
-  if (target < 0 || target >= arr.length) return;
-  const [moved] = arr.splice(i, 1);
-  arr.splice(target, 0, moved);
+function moveStep(c, i, dir, subIdx = -1){
+  const list = subIdx >= 0 ? cols[c].items[i].items : cols[c].items;
+  const idx = subIdx >= 0 ? subIdx : i;
+  const target = idx + dir;
+  if (target < 0 || target >= list.length) return;
+  const [moved] = list.splice(idx, 1);
+  list.splice(target, 0, moved);
   persist(); render();
 }
 
-function dropMode(e, tile, it){
-  if (it.type === 'folder' && drag && drag.item.type !== 'folder') {
-    const r = tile.getBoundingClientRect();
-    return (e.clientY - r.top) < r.height * 0.28 ? 'at' : 'into';
-  }
-  return 'at';
-}
+function makeTile(c, i, it, subIdx = -1){
+  const isSub = subIdx >= 0;
+  const isFolder = !isSub && it.type === 'folder';
+  const tile = document.createElement('div');
+  tile.className = 'tile';
 
-function toggleFolder(it){
-  if (openFolders.has(it)) openFolders.delete(it); else openFolders.add(it);
-  render();
-}
-
-function appendTile(list, c, i, it, parent){
-  list.appendChild(makeTile(c, i, it, parent));
-  if (it.type !== 'folder' || !openFolders.has(it)) return;
-  if (!Array.isArray(it.items)) it.items = [];
-  const sub = document.createElement('div'); sub.className = 'sub';
-  if (editing) {
-    sub.addEventListener('dragover', e => {
-      if (!drag || drag.item.type === 'folder') return;
-      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move';
-      sub.classList.add('over-sub');
-    });
-    sub.addEventListener('dragleave', e => { if (!sub.contains(e.relatedTarget)) sub.classList.remove('over-sub'); });
-    sub.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); sub.classList.remove('over-sub'); moveTo(it.items, it.items.length); });
-  }
-  it.items.forEach((ch, j) => appendTile(sub, c, j, ch, it));
-  if (!it.items.length && !editing) {
-    const p = document.createElement('p'); p.className = 'sub-empty'; p.textContent = 'Dieser Ordner ist leer.';
-    sub.appendChild(p);
-  }
-  if (editing) {
-    const add = document.createElement('button'); add.type = 'button'; add.className = 'add';
-    add.innerHTML = '<b>+</b><span>Favorit in Ordner</span>';
-    add.onclick = () => openDlg(c, -1, it);
-    sub.appendChild(add);
-  }
-  list.appendChild(sub);
-}
-
-function makeTile(c, i, it, parent){
-  const isFolder = it.type === 'folder';
-  const arr = parent ? parent.items : cols[c].items;
-  const isOpen = isFolder && openFolders.has(it);
-  const tile = document.createElement('div'); tile.className = 'tile' + (isOpen ? ' folder-open' : '');
-  if (editing) {
+  if (editing && !isSub) {
     tile.draggable = true;
-    tile.addEventListener('dragstart', e => {
-      e.stopPropagation();
-      drag = {arr, i, item: it};
-      tile.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', it.name);
-    });
+    tile.addEventListener('dragstart', e => { drag = {c, i}; tile.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.name); });
     tile.addEventListener('dragend', () => { drag = null; render(); });
-    tile.addEventListener('dragover', e => {
-      if (!drag) return;
-      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move';
-      if (drag.item === it) return;
-      const mode = dropMode(e, tile, it);
-      tile.classList.toggle('over-into', mode === 'into');
-      tile.classList.toggle('over', mode === 'at');
-    });
-    tile.addEventListener('dragleave', () => tile.classList.remove('over', 'over-into'));
-    tile.addEventListener('drop', e => {
-      e.preventDefault(); e.stopPropagation();
-      if (!drag) return;
-      const mode = dropMode(e, tile, it);
-      tile.classList.remove('over', 'over-into');
-      if (drag.item === it) { drag = null; return; }
-      if (mode === 'into') {
-        if (!Array.isArray(it.items)) it.items = [];
-        openFolders.add(it);
-        moveTo(it.items, it.items.length);
-      } else {
-        moveTo(arr, i);
-      }
-    });
-    if (isFolder) {
-      tile.addEventListener('click', e => { if (e.target.closest('.tools')) return; toggleFolder(it); });
-    }
+    tile.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; tile.classList.add('over'); });
+    tile.addEventListener('dragleave', () => tile.classList.remove('over'));
+    tile.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); moveTo(c, i); });
   }
-  let targetEl;
+
+  const ico = document.createElement('span');
+  renderIconElement(ico, it);
+
+  const nm = document.createElement('span');
+  nm.className = 'name';
+  if (it.type === 'stock') {
+    const sym = (it.symbol || '').toUpperCase();
+    nm.textContent = it.name && it.name.toUpperCase() !== sym ? (sym + ' · ' + it.name) : sym;
+  } else {
+    nm.textContent = it.name;
+  }
+
   if (isFolder) {
+    const folderKey = c + ':' + i;
+    const isOpen = editing || openFolders.has(folderKey);
+    if (isOpen) tile.classList.add('folder-open');
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'folder-btn';
-    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    if (!editing) btn.onclick = () => toggleFolder(it);
-    const ico = document.createElement('span');
-    renderIconElement(ico, it);
-    const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
-    const cnt = document.createElement('span'); cnt.className = 'folder-count'; cnt.textContent = (it.items ? it.items.length : 0);
-    const chev = document.createElement('span'); chev.className = 'folder-chev'; chev.setAttribute('aria-hidden', 'true'); chev.textContent = isOpen ? '▾' : '▸';
-    btn.append(ico, nm, cnt, chev);
-    targetEl = btn;
+    btn.setAttribute('aria-expanded', String(isOpen));
+    const caret = document.createElement('span');
+    caret.className = 'folder-caret';
+    caret.textContent = '▶';
+    btn.append(ico, nm, caret);
+    btn.onclick = () => {
+      if (openFolders.has(folderKey)) openFolders.delete(folderKey);
+      else openFolders.add(folderKey);
+      render();
+    };
+    tile.appendChild(btn);
+
+    if (isOpen) {
+      const subWrap = document.createElement('div');
+      subWrap.className = 'folder-children';
+      (it.items || []).forEach((subIt, sIdx) => {
+        subWrap.appendChild(makeTile(c, i, subIt, sIdx));
+      });
+      if (editing) {
+        const addSub = document.createElement('button');
+        addSub.type = 'button';
+        addSub.className = 'folder-add-sub';
+        addSub.textContent = '+ Eintrag in Ordner';
+        addSub.onclick = () => openDlg(c, i, -2);
+        subWrap.appendChild(addSub);
+      }
+      tile.appendChild(subWrap);
+    }
   } else {
-    const a = document.createElement('a'); a.href = it.url;
-    a.target = '_blank'; a.rel = 'noopener noreferrer';
-    const ico = document.createElement('span');
-    renderIconElement(ico, it);
-    const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
+    const a = document.createElement('a');
+    a.href = it.type === 'stock' ? yahooQuoteUrl(it.symbol) : it.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
     a.append(ico, nm);
-    targetEl = a;
+
+    if (it.type === 'stock' && it.symbol) {
+      const sym = it.symbol.toUpperCase();
+      const badge = document.createElement('span');
+      badge.className = 'stock-quote';
+      badge.dataset.symbol = sym;
+      updateStockBadgeDom(badge, sym, stockCache.get(sym) || null);
+      a.appendChild(badge);
+    }
+    tile.appendChild(a);
   }
+
+  const listLen = isSub ? cols[c].items[i].items.length : cols[c].items.length;
+  const curIdx = isSub ? subIdx : i;
+
   const tools = document.createElement('div'); tools.className = 'tools';
   const up = document.createElement('button'); up.className = 'mob-move'; up.type = 'button'; up.textContent = '↑'; up.title = 'Nach oben'; up.setAttribute('aria-label', it.name + ' nach oben');
-  up.disabled = i === 0;
-  up.onclick = () => moveStep(arr, i, -1);
+  up.disabled = curIdx === 0;
+  up.onclick = () => moveStep(c, i, -1, subIdx);
   const dn = document.createElement('button'); dn.className = 'mob-move'; dn.type = 'button'; dn.textContent = '↓'; dn.title = 'Nach unten'; dn.setAttribute('aria-label', it.name + ' nach unten');
-  dn.disabled = i === arr.length - 1;
-  dn.onclick = () => moveStep(arr, i, 1);
+  dn.disabled = curIdx === listLen - 1;
+  dn.onclick = () => moveStep(c, i, 1, subIdx);
   const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', it.name + ' ändern');
-  ed.onclick = () => openDlg(c, i, parent || null);
+  ed.onclick = () => openDlg(c, i, subIdx);
   const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', it.name + ' löschen');
-  del.onclick = () => { arr.splice(i, 1); persist(); render(); };
+  del.onclick = () => {
+    if (isSub) cols[c].items[i].items.splice(subIdx, 1);
+    else cols[c].items.splice(i, 1);
+    persist(); render();
+  };
   tools.append(up, dn, ed, del);
-  tile.append(targetEl, tools);
+  tile.appendChild(tools);
   return tile;
 }
 
-function moveTo(arr, idx){
+function moveTo(c, i){
   if (!drag) return;
-  const {arr: srcArr, i: srcIdx, item} = drag;
-  drag = null;
-  const topLevel = cols.some(col => col.items === arr);
-  if (item.type === 'folder' && !topLevel) { render(); return; }
-  srcArr.splice(srcIdx, 1);
-  arr.splice(Math.min(idx, arr.length), 0, item);
-  persist(); render();
+  const [moved] = cols[drag.c].items.splice(drag.i, 1);
+  cols[c].items.splice(Math.min(i, cols[c].items.length), 0, moved);
+  drag = null; persist(); render();
 }
 
 const dlg = $('dlg');
@@ -810,7 +1079,16 @@ function syncIconGridSelection(){
 }
 
 function getDraftIconConfig(){
+  const type = $('fType').value;
   const mode = $('fIconMode').value;
+  if (type === 'folder') {
+    if (mode === 'icon') {
+      const custom = $('fIconCustom').value.trim();
+      const val = custom || selectedSymbol;
+      return val ? {iconMode: 'icon', iconValue: val} : {};
+    }
+    return {};
+  }
   if (mode === 'site') {
     const val = $('fIconSite').value.trim();
     return val ? {iconMode: 'site', iconValue: val} : {};
@@ -824,11 +1102,28 @@ function getDraftIconConfig(){
 }
 
 function updateTypeUI(){
-  const isFolder = $('fType').value === 'folder';
-  $('fUrlRow').hidden = isFolder;
-  $('fUrl').required = !isFolder;
-  $('colSelectRow').style.display = editFolder ? 'none' : '';
-  updateIconPreview();
+  const type = $('fType').value;
+  const isLink = type === 'link';
+  const isFolder = type === 'folder';
+  const isStock = type === 'stock';
+
+  $('fUrlRow').hidden = !isLink;
+  $('fStockRow').hidden = !isStock;
+  $('fStockKeyWarn').hidden = !isStock || !!finnhubApiKey;
+  $('fNameLabel').textContent = isStock ? 'Anzeigename (optional)' : (isFolder ? 'Ordnername' : 'Name');
+  $('fName').placeholder = isStock ? 'z. B. Apple (leer = Aktiensymbol)' : '';
+
+  const siteOpt = $('fIconMode').querySelector('option[value="site"]');
+  if (siteOpt) siteOpt.hidden = isFolder;
+  if (isFolder && $('fIconMode').value === 'site') {
+    $('fIconMode').value = 'auto';
+  }
+  const autoOpt = $('fIconMode').querySelector('option[value="auto"]');
+  if (autoOpt) {
+    autoOpt.textContent = isStock ? 'Standard (Aktien-Symbol)' : (isFolder ? 'Standard (Ordner-Symbol)' : 'Automatisch (von Zieladresse)');
+  }
+
+  updateIconModeUI();
 }
 
 function updateIconModeUI(){
@@ -843,11 +1138,13 @@ let previewTimer = null;
 function updateIconPreview(){
   clearTimeout(previewTimer);
   previewTimer = setTimeout(() => {
-    const isFolder = $('fType').value === 'folder';
+    const type = $('fType').value;
+    const sym = $('fSymbol').value.trim().toUpperCase();
     const draft = {
-      type: isFolder ? 'folder' : 'link',
-      name: $('fName').value.trim() || (isFolder ? 'Ordner' : 'Vorschau'),
-      url: isFolder ? '' : (normalize($('fUrl').value) || 'https://example.com'),
+      type,
+      symbol: sym,
+      name: $('fName').value.trim() || sym || 'Vorschau',
+      url: type === 'stock' ? yahooQuoteUrl(sym || 'AAPL') : (normalize($('fUrl').value) || 'https://example.com'),
       ...getDraftIconConfig()
     };
     renderIconElement($('fIconPreview'), draft);
@@ -856,25 +1153,29 @@ function updateIconPreview(){
 
 $('fType').addEventListener('change', updateTypeUI);
 $('fIconMode').addEventListener('change', updateIconModeUI);
-$('fName').addEventListener('input', updateIconPreview);
+$('fName').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
 $('fUrl').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
+$('fSymbol').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
 $('fIconSite').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
 $('fIconCustom').addEventListener('input', () => { syncIconGridSelection(); updateIconPreview(); });
 
-function openDlg(c, i, folderRef){
-  editCol = c; editIdx = i; editFolder = folderRef || null;
-  const list = editFolder ? editFolder.items : cols[c].items;
-  const item = i < 0 ? null : list[i];
-  const isFolder = item ? item.type === 'folder' : false;
-  $('dlgTitle').textContent = editFolder
-    ? (item ? 'Favorit im Ordner ändern' : 'Favorit in Ordner hinzufügen')
-    : (item ? (isFolder ? 'Ordner ändern' : 'Favorit ändern') : 'Favorit oder Ordner hinzufügen');
-  $('fType').value = isFolder ? 'folder' : 'link';
-  $('fType').disabled = !!editFolder;
+function openDlg(c, i, subIdx = -1){
+  editCol = c; editIdx = i; editSubIdx = subIdx;
+  const isInFolder = subIdx === -2 || subIdx >= 0;
+  const item = i < 0 ? null : (subIdx >= 0 ? cols[c].items[i].items[subIdx] : (subIdx === -2 ? null : cols[c].items[i]));
+
+  $('dlgTitle').textContent = item
+    ? (item.type === 'folder' ? 'FavoritOrdner ändern' : (item.type === 'stock' ? 'Aktiensymbol ändern' : 'Favorit ändern'))
+    : (isInFolder ? 'Eintrag in Ordner hinzufügen' : 'Eintrag hinzufügen');
+
+  const folderOpt = $('fType').querySelector('option[value="folder"]');
+  if (folderOpt) folderOpt.hidden = isInFolder;
+
+  const itemType = item ? (item.type || 'link') : 'link';
+  $('fType').value = itemType;
   $('fName').value = item ? item.name : '';
-  $('fUrl').value = item && !isFolder ? item.url : '';
-  $('fUrl').setCustomValidity('');
-  $('fIconSite').setCustomValidity('');
+  $('fUrl').value = (item && itemType === 'link') ? item.url : '';
+  $('fSymbol').value = (item && itemType === 'stock') ? (item.symbol || '') : '';
 
   const mode = item && (item.iconMode === 'site' || item.iconMode === 'icon') ? item.iconMode : 'auto';
   $('fIconMode').value = mode;
@@ -884,13 +1185,14 @@ function openDlg(c, i, folderRef){
       selectedSymbol = item.iconValue;
       $('fIconCustom').value = '';
     } else {
-      selectedSymbol = 'svg:folder';
+      selectedSymbol = 'svg:home';
       $('fIconCustom').value = item.iconValue;
     }
   } else {
-    selectedSymbol = isFolder ? 'svg:folder' : 'svg:home';
+    selectedSymbol = itemType === 'stock' ? 'svg:chart' : (itemType === 'folder' ? 'svg:folder' : 'svg:home');
     $('fIconCustom').value = '';
   }
+  updateTypeUI();
 
   const sel = $('fCol');
   sel.innerHTML = '';
@@ -901,51 +1203,102 @@ function openDlg(c, i, folderRef){
     if (idx === c) opt.selected = true;
     sel.appendChild(opt);
   });
-  updateTypeUI();
-  updateIconModeUI();
+  $('colSelectRow').style.display = isInFolder ? 'none' : '';
+
   dlg.showModal();
-  $('fName').focus();
+  if (itemType === 'stock') $('fSymbol').focus();
+  else $('fName').focus();
 }
 $('cancel').onclick = () => dlg.close();
 $('form').addEventListener('submit', e => {
-  const isFolder = !editFolder && $('fType').value === 'folder';
-  let url = '';
-  if (!isFolder) {
-    url = normalize($('fUrl').value);
-    if (!url) { e.preventDefault(); $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.'); $('fUrl').reportValidity(); return; }
-  }
-  const mode = $('fIconMode').value;
-  if (mode === 'site') {
-    const siteUrl = normalize($('fIconSite').value);
-    if (!siteUrl) {
+  const type = $('fType').value;
+  const rawName = $('fName').value.trim();
+
+  if (type === 'link') {
+    if (!rawName) {
       e.preventDefault();
-      $('fIconSite').setCustomValidity('Bitte eine gültige Webseiten- oder Bildadresse eingeben.');
-      $('fIconSite').reportValidity();
+      $('fName').setCustomValidity('Bitte einen Namen eingeben.');
+      $('fName').reportValidity();
       return;
     }
+    const url = normalize($('fUrl').value);
+    if (!url) {
+      e.preventDefault();
+      $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.');
+      $('fUrl').reportValidity();
+      return;
+    }
+    const mode = $('fIconMode').value;
+    if (mode === 'site') {
+      const siteUrl = normalize($('fIconSite').value);
+      if (!siteUrl) {
+        e.preventDefault();
+        $('fIconSite').setCustomValidity('Bitte eine gültige Webseiten- oder Bildadresse eingeben.');
+        $('fIconSite').reportValidity();
+        return;
+      }
+    }
+  } else if (type === 'folder') {
+    if (!rawName) {
+      e.preventDefault();
+      $('fName').setCustomValidity('Bitte einen Ordnernamen eingeben.');
+      $('fName').reportValidity();
+      return;
+    }
+  } else if (type === 'stock') {
+    const sym = $('fSymbol').value.trim().toUpperCase();
+    if (!sym || !/^[A-Z0-9.\-^=:]+$/.test(sym)) {
+      e.preventDefault();
+      $('fSymbol').setCustomValidity('Bitte ein gültiges Aktiensymbol eingeben (z. B. AAPL oder SAP.DE).');
+      $('fSymbol').reportValidity();
+      return;
+    }
+    const mode = $('fIconMode').value;
+    if (mode === 'site') {
+      const siteUrl = normalize($('fIconSite').value);
+      if (!siteUrl) {
+        e.preventDefault();
+        $('fIconSite').setCustomValidity('Bitte eine gültige Webseiten- oder Bildadresse eingeben.');
+        $('fIconSite').reportValidity();
+        return;
+      }
+    }
   }
-  const name = $('fName').value.trim();
-  const entry = isFolder
-    ? {type: 'folder', name: name || 'Ordner', items: (editIdx >= 0 && cols[editCol].items[editIdx] && cols[editCol].items[editIdx].items) ? cols[editCol].items[editIdx].items : [], ...getDraftIconConfig()}
-    : {name: name || url, url, ...getDraftIconConfig()};
 
-  if (editFolder) {
-    openFolders.add(editFolder);
-    if (editIdx < 0) editFolder.items.push(entry);
-    else editFolder.items[editIdx] = entry;
-    persist();
-    render();
-    return;
-  }
-
-  const targetCol = parseInt($('fCol').value, 10);
-  if (editIdx < 0) {
-    cols[targetCol].items.push(entry);
-  } else if (targetCol === editCol) {
-    cols[editCol].items[editIdx] = entry;
+  let entry;
+  if (type === 'folder') {
+    const existingItems = (editIdx >= 0 && editSubIdx === -1 && cols[editCol].items[editIdx] && Array.isArray(cols[editCol].items[editIdx].items))
+      ? cols[editCol].items[editIdx].items
+      : [];
+    entry = {type: 'folder', name: rawName, items: existingItems, ...getDraftIconConfig()};
+  } else if (type === 'stock') {
+    const sym = $('fSymbol').value.trim().toUpperCase();
+    entry = {
+      type: 'stock',
+      symbol: sym,
+      name: rawName || sym,
+      url: yahooQuoteUrl(sym),
+      ...getDraftIconConfig()
+    };
   } else {
-    cols[editCol].items.splice(editIdx, 1);
-    cols[targetCol].items.push(entry);
+    entry = {name: rawName, url: normalize($('fUrl').value), ...getDraftIconConfig()};
+  }
+
+  if (editSubIdx === -2) {
+    cols[editCol].items[editIdx].items.push(entry);
+    openFolders.add(editCol + ':' + editIdx);
+  } else if (editSubIdx >= 0) {
+    cols[editCol].items[editIdx].items[editSubIdx] = entry;
+  } else {
+    const targetCol = parseInt($('fCol').value, 10);
+    if (editIdx < 0) {
+      cols[targetCol].items.push(entry);
+    } else if (targetCol === editCol) {
+      cols[editCol].items[editIdx] = entry;
+    } else {
+      cols[editCol].items.splice(editIdx, 1);
+      cols[targetCol].items.push(entry);
+    }
   }
   persist(); render();
 });
@@ -977,7 +1330,7 @@ $('importFile').onchange = () => {
   r.onload = () => {
     let data = null;
     try { data = fromData(JSON.parse(r.result)); } catch(e){}
-    const count = data ? countItems(data) : 0;
+    const count = data ? data.reduce((n, c) => n + c.items.length, 0) : 0;
     if (!count) { alert('Die Datei enthält keine gültigen Favoriten.'); return; }
     const have = cols.some(c => c.items.length);
     const replace = have ? confirm(count + ' Einträge gefunden.\n\nOK: bestehende Favoriten ersetzen\nAbbrechen: zu den bestehenden hinzufügen') : true;
@@ -1065,7 +1418,7 @@ const SYNC_SUPPORTED = 'showOpenFilePicker' in window && 'showSaveFilePicker' in
 const SYNC_TYPES = [{description: 'Favoriten (JSON)', accept: {'application/json': ['.json']}}];
 let syncHandle = null, syncReady = false, syncState = 'off', syncTimer = null, syncLast = '';
 const canon = data => JSON.stringify({version: 2, columns: data}, null, 2);
-const countItems = data => data.reduce((n, c) => n + countEntries(c.items), 0);
+const countItems = data => data.reduce((n, c) => n + c.items.length, 0);
 
 let githubStatus = 'off';
 function updateSyncDot(){
@@ -1203,8 +1556,11 @@ $('syncStopBtn').onclick = async () => {
 };
 $('syncCloseBtn').onclick = () => $('syncDlg').close();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && syncHandle && syncReady && !editing && !$('dlg').open) syncPull();
-  if (document.visibilityState === 'visible' && githubConfig.enabled && !editing && !$('dlg').open) githubPull();
+  if (document.visibilityState === 'visible') {
+    if (syncHandle && syncReady && !editing && !$('dlg').open) syncPull();
+    if (githubConfig.enabled && !editing && !$('dlg').open) githubPull();
+    refreshAllStocks();
+  }
 });
 
 /* ---- Optionale GitHub-Synchronisierung ---- */
@@ -1917,6 +2273,13 @@ setInterval(() => {
 }, 5000);
 
 setInterval(() => { if (document.visibilityState === 'visible' && githubConfig.enabled && githubConfig.autoPull && !editing && !$('dlg').open && !$('githubDlg').open) githubPull(); }, 15000);
+
+// Aktienkurse alle 2 Minuten (120.000 ms) aktualisieren
+setInterval(() => {
+  if (document.visibilityState === 'visible' && !editing) refreshAllStocks(true);
+}, STOCK_REFRESH_MS);
+
+updateFinnhubBtnState();
 (async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); if (githubConfig.enabled && githubConfig.autoPull) { await githubPull(); notesPull(); } })();
 </script>
 </body>
