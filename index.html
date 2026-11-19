@@ -96,8 +96,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .col.over-col{outline:2px dashed var(--accent);outline-offset:8px;border-radius:12px}
 .tile,.add{margin-bottom:8px}
 .tile{position:relative}
-.tile a,.add{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink);transition:transform .12s,border-color .12s}
-.tile a:hover,.add:hover{transform:translateY(-1px);border-color:var(--accent)}
+.tile a,.tile button.folder-btn,.add{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;text-decoration:none;color:var(--ink);text-align:left;transition:transform .12s,border-color .12s}
+.tile a:hover,.tile button.folder-btn:hover,.add:hover{transform:translateY(-1px);border-color:var(--accent)}
+.folder-count{color:var(--muted);font-size:.82rem;flex-shrink:0}
 .ico{flex:none;width:30px;height:30px;display:grid;place-items:center;font-weight:600;color:var(--accent)}
 .ico.letter{border-radius:8px;background:var(--bg)}
 .ico.symbol{border-radius:8px;background:var(--bg);font-size:1.15rem;line-height:1}
@@ -111,10 +112,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tools button{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:.8rem;line-height:1;display:grid;place-items:center}
 .tools .del{color:var(--danger)}
 .tools .mob-move{display:none}
-.editing .tile a{pointer-events:none}
+.editing .tile a,.editing .tile button.folder-btn{pointer-events:none}
 .editing .tile{cursor:grab}
 .tile.dragging{opacity:.4}
-.tile.over a{border-color:var(--accent);border-style:dashed}
+.tile.over a,.tile.over button.folder-btn{border-color:var(--accent);border-style:dashed}
 dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:24px;width:min(420px,92vw);max-height:90dvh;overflow-y:auto}
 dialog::backdrop{background:rgba(10,15,20,.5)}
 dialog h2{margin:0 0 16px;font-size:1.15rem}
@@ -131,6 +132,23 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
 .ico-choice svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ico-choice:hover,.ico-choice.active{border-color:var(--accent);background:rgba(31,111,139,.12);color:var(--accent)}
 .field-hint{font-size:.8rem;color:var(--muted);margin:-6px 0 12px}
+.folder-list{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.folder-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+.folder-row a{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-decoration:none;color:var(--ink)}
+.folder-row a:hover .name{color:var(--accent)}
+.folder-row-actions{display:flex;gap:6px;flex-shrink:0}
+.mini-btn{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:.82rem;color:var(--muted)}
+.mini-btn:hover{color:var(--ink);border-color:var(--accent)}
+.mini-btn.del{color:var(--danger)}
+.mini-btn.del:hover{border-color:var(--danger)}
+.folder-chev{flex-shrink:0;width:12px;text-align:center;color:var(--muted);font-size:.8rem}
+.tile.folder-open>button.folder-btn{border-color:var(--accent)}
+.tile.over-into a,.tile.over-into button.folder-btn{border-color:var(--accent);background:rgba(31,111,139,.12)}
+.sub{margin:-2px 0 8px 14px;padding-left:10px;border-left:2px solid var(--line)}
+.sub.over-sub{border-left-color:var(--accent)}
+.sub .tile,.sub .add{margin-bottom:6px}
+.sub .tile a,.sub .tile button.folder-btn,.sub .add{height:40px}
+.sub-empty{margin:4px 0 10px;color:var(--muted);font-size:.88rem}
 @media (prefers-color-scheme:dark){.primary{color:#0e1419}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
@@ -186,18 +204,18 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   .col h2:empty {
     display: none;
   }
-  .tile a, .add {
+  .tile a, .tile button.folder-btn, .add {
     height: 48px;
     padding: 0 14px;
   }
-  .tile a:hover, .add:hover {
+  .tile a:hover, .tile button.folder-btn:hover, .add:hover {
     transform: none;
   }
-  .tile a:active, .add:active {
+  .tile a:active, .tile button.folder-btn:active, .add:active {
     background: var(--bg);
     border-color: var(--accent);
   }
-  .editing .tile a {
+  .editing .tile a, .editing .tile button.folder-btn {
     padding-right: 136px;
   }
   .tools {
@@ -248,7 +266,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
       <div class="greet-row"><h1 id="greet">Hallo</h1><button class="icon-btn" id="notesBtn" type="button" title="Notizen" aria-label="Notizen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M8.5 10h7M8.5 14h7M8.5 17.5h4"/></svg></button></div>
       <div id="date"></div>
     </div>
-    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden>v1.0.1</span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
+    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden>v1.0.2</span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
   </header>
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
@@ -271,8 +289,14 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
         <span>Vorschau</span>
       </div>
     </div>
+    <label>Typ
+      <select id="fType">
+        <option value="link">Favorit (Link)</option>
+        <option value="folder">Favoritenordner</option>
+      </select>
+    </label>
     <label>Name<input id="fName" required maxlength="40" autocomplete="off"></label>
-    <label>Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
+    <label id="fUrlRow">Adresse<input id="fUrl" required placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
     <label>Favicon-Quelle
       <select id="fIconMode">
         <option value="auto">Automatisch (von Zieladresse)</option>
@@ -385,7 +409,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   </form>
 </dialog>
 <script>
-const APP_VERSION = 'v1.0.1';
+const APP_VERSION = 'v1.0.2';
 const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
 const SETTINGS_DB = 'startseite-startdatei-v1', SETTINGS_STORE = 'settings';
 const $ = id => document.getElementById(id);
@@ -418,22 +442,40 @@ function normalize(u){
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   try { return new URL(u).href; } catch(e){ return null; }
 }
+function cleanEntry(x){
+  if (!x || typeof x !== 'object' || typeof x.name !== 'string') return null;
+  const name = x.name.trim().slice(0, 40);
+  if (x.type === 'folder') {
+    const folder = {type: 'folder', name: name || 'Ordner', items: cleanItems(x.items)};
+    if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
+      folder.iconMode = x.iconMode;
+      folder.iconValue = x.iconValue.trim().slice(0, 500);
+    }
+    return folder;
+  }
+  if (typeof x.url === 'string') {
+    const u = normalize(x.url);
+    if (u) {
+      const entry = {name: name || u, url: u};
+      if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
+        entry.iconMode = x.iconMode;
+        entry.iconValue = x.iconValue.trim().slice(0, 500);
+      }
+      return entry;
+    }
+  }
+  return null;
+}
 function cleanItems(list){
   const out = [];
   (Array.isArray(list) ? list : []).forEach(x => {
-    if (x && typeof x.name === 'string' && typeof x.url === 'string') {
-      const u = normalize(x.url);
-      if (u) {
-        const entry = {name: x.name.trim().slice(0, 40) || u, url: u};
-        if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
-          entry.iconMode = x.iconMode;
-          entry.iconValue = x.iconValue.trim().slice(0, 500);
-        }
-        out.push(entry);
-      }
-    }
+    const cleaned = cleanEntry(x);
+    if (cleaned) out.push(cleaned);
   });
   return out;
+}
+function countEntries(list){
+  return (Array.isArray(list) ? list : []).reduce((n, it) => n + (it && it.type === 'folder' ? countEntries(it.items) : 1), 0);
 }
 function fromData(v){
   const cols = emptyCols();
@@ -494,7 +536,8 @@ async function settingsSet(key, value){
     tx.oncomplete = resolve; tx.onerror = () => reject(req.error);
   });
 }
-let cols = load(), editing = false, editCol = 0, editIdx = -1, drag = null;
+let cols = load(), editing = false, editCol = 0, editIdx = -1, editFolder = null, drag = null;
+const openFolders = new WeakSet();
 
 function render(){
   const root = $('cols');
@@ -518,14 +561,14 @@ function render(){
     if (editing) {
       el.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('over-col'); });
       el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over-col'); });
-      el.addEventListener('drop', e => { e.preventDefault(); moveTo(c, cols[c].items.length); });
+      el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over-col'); moveTo(cols[c].items, cols[c].items.length); });
     }
-    col.items.forEach((it, i) => list.appendChild(makeTile(c, i, it)));
+    col.items.forEach((it, i) => appendTile(list, c, i, it, null));
     let add = null;
     if (editing) {
       add = document.createElement('button'); add.className = 'add';
-      add.innerHTML = '<b>+</b><span>Favorit hinzufügen</span>';
-      add.onclick = () => openDlg(c, -1);
+      add.innerHTML = '<b>+</b><span>Favorit oder Ordner</span>';
+      add.onclick = () => openDlg(c, -1, null);
     }
     if (add && !col.items.length) el.append(add, list); else el.append(list, ...(add ? [add] : []));
     root.appendChild(el);
@@ -554,7 +597,7 @@ function iconSources(it, host){
     const customList = siteIconSources(it.iconValue);
     if (customList.length) return customList;
   }
-  return ['https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host)];
+  return host ? ['https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host)] : [];
 }
 
 function renderIconElement(ico, it){
@@ -569,8 +612,13 @@ function renderIconElement(ico, it){
     }
     return;
   }
+  if (it.type === 'folder' && !it.iconMode) {
+    ico.classList.add('symbol');
+    ico.innerHTML = PRESET_ICONS['svg:folder'].svg;
+    return;
+  }
   let host = '';
-  try { host = new URL(it.url).hostname; } catch(e){}
+  try { if (it.url) host = new URL(it.url).hostname; } catch(e){}
   const srcs = host ? iconSources(it, host) : (it.iconMode === 'site' && it.iconValue ? siteIconSources(it.iconValue) : []);
   const fallbackChar = (it.name || host || '?').trim().charAt(0).toUpperCase() || '?';
   if (!srcs.length) {
@@ -589,51 +637,145 @@ function renderIconElement(ico, it){
   ico.appendChild(img);
 }
 
-function moveStep(c, i, dir){
+function moveStep(arr, i, dir){
   const target = i + dir;
-  if (target < 0 || target >= cols[c].items.length) return;
-  const [moved] = cols[c].items.splice(i, 1);
-  cols[c].items.splice(target, 0, moved);
+  if (target < 0 || target >= arr.length) return;
+  const [moved] = arr.splice(i, 1);
+  arr.splice(target, 0, moved);
   persist(); render();
 }
 
-function makeTile(c, i, it){
-  const tile = document.createElement('div'); tile.className = 'tile';
+function dropMode(e, tile, it){
+  if (it.type === 'folder' && drag && drag.item.type !== 'folder') {
+    const r = tile.getBoundingClientRect();
+    return (e.clientY - r.top) < r.height * 0.28 ? 'at' : 'into';
+  }
+  return 'at';
+}
+
+function toggleFolder(it){
+  if (openFolders.has(it)) openFolders.delete(it); else openFolders.add(it);
+  render();
+}
+
+function appendTile(list, c, i, it, parent){
+  list.appendChild(makeTile(c, i, it, parent));
+  if (it.type !== 'folder' || !openFolders.has(it)) return;
+  if (!Array.isArray(it.items)) it.items = [];
+  const sub = document.createElement('div'); sub.className = 'sub';
+  if (editing) {
+    sub.addEventListener('dragover', e => {
+      if (!drag || drag.item.type === 'folder') return;
+      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move';
+      sub.classList.add('over-sub');
+    });
+    sub.addEventListener('dragleave', e => { if (!sub.contains(e.relatedTarget)) sub.classList.remove('over-sub'); });
+    sub.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); sub.classList.remove('over-sub'); moveTo(it.items, it.items.length); });
+  }
+  it.items.forEach((ch, j) => appendTile(sub, c, j, ch, it));
+  if (!it.items.length && !editing) {
+    const p = document.createElement('p'); p.className = 'sub-empty'; p.textContent = 'Dieser Ordner ist leer.';
+    sub.appendChild(p);
+  }
+  if (editing) {
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'add';
+    add.innerHTML = '<b>+</b><span>Favorit in Ordner</span>';
+    add.onclick = () => openDlg(c, -1, it);
+    sub.appendChild(add);
+  }
+  list.appendChild(sub);
+}
+
+function makeTile(c, i, it, parent){
+  const isFolder = it.type === 'folder';
+  const arr = parent ? parent.items : cols[c].items;
+  const isOpen = isFolder && openFolders.has(it);
+  const tile = document.createElement('div'); tile.className = 'tile' + (isOpen ? ' folder-open' : '');
   if (editing) {
     tile.draggable = true;
-    tile.addEventListener('dragstart', e => { drag = {c, i}; tile.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.name); });
+    tile.addEventListener('dragstart', e => {
+      e.stopPropagation();
+      drag = {arr, i, item: it};
+      tile.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', it.name);
+    });
     tile.addEventListener('dragend', () => { drag = null; render(); });
-    tile.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; tile.classList.add('over'); });
-    tile.addEventListener('dragleave', () => tile.classList.remove('over'));
-    tile.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); moveTo(c, i); });
+    tile.addEventListener('dragover', e => {
+      if (!drag) return;
+      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move';
+      if (drag.item === it) return;
+      const mode = dropMode(e, tile, it);
+      tile.classList.toggle('over-into', mode === 'into');
+      tile.classList.toggle('over', mode === 'at');
+    });
+    tile.addEventListener('dragleave', () => tile.classList.remove('over', 'over-into'));
+    tile.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!drag) return;
+      const mode = dropMode(e, tile, it);
+      tile.classList.remove('over', 'over-into');
+      if (drag.item === it) { drag = null; return; }
+      if (mode === 'into') {
+        if (!Array.isArray(it.items)) it.items = [];
+        openFolders.add(it);
+        moveTo(it.items, it.items.length);
+      } else {
+        moveTo(arr, i);
+      }
+    });
+    if (isFolder) {
+      tile.addEventListener('click', e => { if (e.target.closest('.tools')) return; toggleFolder(it); });
+    }
   }
-  const a = document.createElement('a'); a.href = it.url;
-  a.target = '_blank'; a.rel = 'noopener noreferrer';
-  const ico = document.createElement('span');
-  renderIconElement(ico, it);
-  const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
-  a.append(ico, nm);
+  let targetEl;
+  if (isFolder) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'folder-btn';
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    if (!editing) btn.onclick = () => toggleFolder(it);
+    const ico = document.createElement('span');
+    renderIconElement(ico, it);
+    const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
+    const cnt = document.createElement('span'); cnt.className = 'folder-count'; cnt.textContent = (it.items ? it.items.length : 0);
+    const chev = document.createElement('span'); chev.className = 'folder-chev'; chev.setAttribute('aria-hidden', 'true'); chev.textContent = isOpen ? '▾' : '▸';
+    btn.append(ico, nm, cnt, chev);
+    targetEl = btn;
+  } else {
+    const a = document.createElement('a'); a.href = it.url;
+    a.target = '_blank'; a.rel = 'noopener noreferrer';
+    const ico = document.createElement('span');
+    renderIconElement(ico, it);
+    const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = it.name;
+    a.append(ico, nm);
+    targetEl = a;
+  }
   const tools = document.createElement('div'); tools.className = 'tools';
   const up = document.createElement('button'); up.className = 'mob-move'; up.type = 'button'; up.textContent = '↑'; up.title = 'Nach oben'; up.setAttribute('aria-label', it.name + ' nach oben');
   up.disabled = i === 0;
-  up.onclick = () => moveStep(c, i, -1);
+  up.onclick = () => moveStep(arr, i, -1);
   const dn = document.createElement('button'); dn.className = 'mob-move'; dn.type = 'button'; dn.textContent = '↓'; dn.title = 'Nach unten'; dn.setAttribute('aria-label', it.name + ' nach unten');
-  dn.disabled = i === cols[c].items.length - 1;
-  dn.onclick = () => moveStep(c, i, 1);
+  dn.disabled = i === arr.length - 1;
+  dn.onclick = () => moveStep(arr, i, 1);
   const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', it.name + ' ändern');
-  ed.onclick = () => openDlg(c, i);
+  ed.onclick = () => openDlg(c, i, parent || null);
   const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', it.name + ' löschen');
-  del.onclick = () => { cols[c].items.splice(i, 1); persist(); render(); };
+  del.onclick = () => { arr.splice(i, 1); persist(); render(); };
   tools.append(up, dn, ed, del);
-  tile.append(a, tools);
+  tile.append(targetEl, tools);
   return tile;
 }
 
-function moveTo(c, i){
+function moveTo(arr, idx){
   if (!drag) return;
-  const [moved] = cols[drag.c].items.splice(drag.i, 1);
-  cols[c].items.splice(Math.min(i, cols[c].items.length), 0, moved);
-  drag = null; persist(); render();
+  const {arr: srcArr, i: srcIdx, item} = drag;
+  drag = null;
+  const topLevel = cols.some(col => col.items === arr);
+  if (item.type === 'folder' && !topLevel) { render(); return; }
+  srcArr.splice(srcIdx, 1);
+  arr.splice(Math.min(idx, arr.length), 0, item);
+  persist(); render();
 }
 
 const dlg = $('dlg');
@@ -681,6 +823,14 @@ function getDraftIconConfig(){
   return {};
 }
 
+function updateTypeUI(){
+  const isFolder = $('fType').value === 'folder';
+  $('fUrlRow').hidden = isFolder;
+  $('fUrl').required = !isFolder;
+  $('colSelectRow').style.display = editFolder ? 'none' : '';
+  updateIconPreview();
+}
+
 function updateIconModeUI(){
   const mode = $('fIconMode').value;
   $('fIconSiteRow').hidden = mode !== 'site';
@@ -693,27 +843,38 @@ let previewTimer = null;
 function updateIconPreview(){
   clearTimeout(previewTimer);
   previewTimer = setTimeout(() => {
+    const isFolder = $('fType').value === 'folder';
     const draft = {
-      name: $('fName').value.trim() || 'Vorschau',
-      url: normalize($('fUrl').value) || 'https://example.com',
+      type: isFolder ? 'folder' : 'link',
+      name: $('fName').value.trim() || (isFolder ? 'Ordner' : 'Vorschau'),
+      url: isFolder ? '' : (normalize($('fUrl').value) || 'https://example.com'),
       ...getDraftIconConfig()
     };
     renderIconElement($('fIconPreview'), draft);
   }, 120);
 }
 
+$('fType').addEventListener('change', updateTypeUI);
 $('fIconMode').addEventListener('change', updateIconModeUI);
 $('fName').addEventListener('input', updateIconPreview);
 $('fUrl').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
 $('fIconSite').addEventListener('input', e => { e.target.setCustomValidity(''); updateIconPreview(); });
 $('fIconCustom').addEventListener('input', () => { syncIconGridSelection(); updateIconPreview(); });
 
-function openDlg(c, i){
-  editCol = c; editIdx = i;
-  const item = i < 0 ? null : cols[c].items[i];
-  $('dlgTitle').textContent = item ? 'Favorit ändern' : 'Favorit hinzufügen';
+function openDlg(c, i, folderRef){
+  editCol = c; editIdx = i; editFolder = folderRef || null;
+  const list = editFolder ? editFolder.items : cols[c].items;
+  const item = i < 0 ? null : list[i];
+  const isFolder = item ? item.type === 'folder' : false;
+  $('dlgTitle').textContent = editFolder
+    ? (item ? 'Favorit im Ordner ändern' : 'Favorit in Ordner hinzufügen')
+    : (item ? (isFolder ? 'Ordner ändern' : 'Favorit ändern') : 'Favorit oder Ordner hinzufügen');
+  $('fType').value = isFolder ? 'folder' : 'link';
+  $('fType').disabled = !!editFolder;
   $('fName').value = item ? item.name : '';
-  $('fUrl').value = item ? item.url : '';
+  $('fUrl').value = item && !isFolder ? item.url : '';
+  $('fUrl').setCustomValidity('');
+  $('fIconSite').setCustomValidity('');
 
   const mode = item && (item.iconMode === 'site' || item.iconMode === 'icon') ? item.iconMode : 'auto';
   $('fIconMode').value = mode;
@@ -723,14 +884,13 @@ function openDlg(c, i){
       selectedSymbol = item.iconValue;
       $('fIconCustom').value = '';
     } else {
-      selectedSymbol = 'svg:home';
+      selectedSymbol = 'svg:folder';
       $('fIconCustom').value = item.iconValue;
     }
   } else {
-    selectedSymbol = 'svg:home';
+    selectedSymbol = isFolder ? 'svg:folder' : 'svg:home';
     $('fIconCustom').value = '';
   }
-  updateIconModeUI();
 
   const sel = $('fCol');
   sel.innerHTML = '';
@@ -741,13 +901,19 @@ function openDlg(c, i){
     if (idx === c) opt.selected = true;
     sel.appendChild(opt);
   });
+  updateTypeUI();
+  updateIconModeUI();
   dlg.showModal();
   $('fName').focus();
 }
 $('cancel').onclick = () => dlg.close();
 $('form').addEventListener('submit', e => {
-  const url = normalize($('fUrl').value);
-  if (!url) { e.preventDefault(); $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.'); $('fUrl').reportValidity(); return; }
+  const isFolder = !editFolder && $('fType').value === 'folder';
+  let url = '';
+  if (!isFolder) {
+    url = normalize($('fUrl').value);
+    if (!url) { e.preventDefault(); $('fUrl').setCustomValidity('Bitte eine gültige Adresse eingeben.'); $('fUrl').reportValidity(); return; }
+  }
   const mode = $('fIconMode').value;
   if (mode === 'site') {
     const siteUrl = normalize($('fIconSite').value);
@@ -758,7 +924,20 @@ $('form').addEventListener('submit', e => {
       return;
     }
   }
-  const entry = {name: $('fName').value.trim(), url, ...getDraftIconConfig()};
+  const name = $('fName').value.trim();
+  const entry = isFolder
+    ? {type: 'folder', name: name || 'Ordner', items: (editIdx >= 0 && cols[editCol].items[editIdx] && cols[editCol].items[editIdx].items) ? cols[editCol].items[editIdx].items : [], ...getDraftIconConfig()}
+    : {name: name || url, url, ...getDraftIconConfig()};
+
+  if (editFolder) {
+    openFolders.add(editFolder);
+    if (editIdx < 0) editFolder.items.push(entry);
+    else editFolder.items[editIdx] = entry;
+    persist();
+    render();
+    return;
+  }
+
   const targetCol = parseInt($('fCol').value, 10);
   if (editIdx < 0) {
     cols[targetCol].items.push(entry);
@@ -798,7 +977,7 @@ $('importFile').onchange = () => {
   r.onload = () => {
     let data = null;
     try { data = fromData(JSON.parse(r.result)); } catch(e){}
-    const count = data ? data.reduce((n, c) => n + c.items.length, 0) : 0;
+    const count = data ? countItems(data) : 0;
     if (!count) { alert('Die Datei enthält keine gültigen Favoriten.'); return; }
     const have = cols.some(c => c.items.length);
     const replace = have ? confirm(count + ' Einträge gefunden.\n\nOK: bestehende Favoriten ersetzen\nAbbrechen: zu den bestehenden hinzufügen') : true;
@@ -886,7 +1065,7 @@ const SYNC_SUPPORTED = 'showOpenFilePicker' in window && 'showSaveFilePicker' in
 const SYNC_TYPES = [{description: 'Favoriten (JSON)', accept: {'application/json': ['.json']}}];
 let syncHandle = null, syncReady = false, syncState = 'off', syncTimer = null, syncLast = '';
 const canon = data => JSON.stringify({version: 2, columns: data}, null, 2);
-const countItems = data => data.reduce((n, c) => n + c.items.length, 0);
+const countItems = data => data.reduce((n, c) => n + countEntries(c.items), 0);
 
 let githubStatus = 'off';
 function updateSyncDot(){
