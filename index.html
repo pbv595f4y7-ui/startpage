@@ -292,8 +292,9 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     <div id="notesAttachments" aria-label="Angehängte Dateien"></div>
     <p id="notesStatus"></p>
     <div class="row" style="justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <button type="button" class="link-btn" id="notesUploadBtn">Datei anfügen…</button>
+        <button type="button" class="link-btn" id="notesSyncAttachmentsBtn">GitHub-Sync</button>
         <button type="button" class="link-btn danger" id="notesClearAttachmentsBtn">Alle Dateien löschen</button>
       </div>
       <input type="file" id="notesFileIn" hidden>
@@ -874,7 +875,19 @@ $('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/
       :c.autoPush?confirm('Hinweis: Die Datei in GitHub wird mit deinen lokalen Favoriten überschrieben.\n\nFortfahren?'):true;
     if(!ok)return;
   }
-  githubConfig=c;githubSave();githubState('active');$('githubDlg').close();if(c.autoPull)await githubPull();else if(c.autoPush)await githubPush(true)};
+  const wasEnabled = githubConfig.enabled;
+  githubConfig=c;githubSave();githubState('active');$('githubDlg').close();
+  if(c.autoPull){
+    await githubPull();
+    await notesPull();
+  }else if(c.autoPush){
+    await githubPush(true);
+    await notesPush();
+  }
+  if(!wasEnabled && notesSyncOn()){
+    await syncNotesAndAttachmentsFromGitHub(true);
+  }
+};
 $('githubStopBtn').onclick=()=>{
   if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
   const keepLocal=confirm('Sollen die aktuell angezeigten Einträge lokal erhalten bleiben?\n\nOK = lokal erhalten\nAbbrechen = lokale Einträge löschen');
@@ -921,10 +934,15 @@ function setNotesStatus(msg, err){
 function updateNotesUiState(){
   const on = notesSyncOn();
   const btn = $('notesUploadBtn');
+  const syncBtn = $('notesSyncAttachmentsBtn');
   const clearAllBtn = $('notesClearAttachmentsBtn');
   if (btn) {
     btn.disabled = !on;
     btn.title = on ? 'Datei verschlüsselt als anonymes Objekt anfügen (max. 50 MB)' : 'Deaktiviert: Bitte zuerst verschlüsselten GitHub-Sync aktivieren';
+  }
+  if (syncBtn) {
+    syncBtn.disabled = !on;
+    syncBtn.title = on ? 'Alle verschlüsselten Dateien aus dem GitHub-Ordner attachments nachladen und wiederherstellen' : 'Deaktiviert: Bitte zuerst verschlüsselten GitHub-Sync aktivieren';
   }
   if (clearAllBtn) {
     clearAllBtn.disabled = !on;
@@ -1264,7 +1282,8 @@ async function notesPush(){
       if (rem.updated > notes.updated) {
         const mergedFiles = [...rem.files];
         notes.files.forEach(lf => {
-          if (!mergedFiles.some(rf => rf.name === lf.name && rf.githubPath === lf.githubPath)) mergedFiles.push(lf);
+          const exists = mergedFiles.some(rf => (rf.githubPath && lf.githubPath && rf.githubPath === lf.githubPath) || (!rf.githubPath && !lf.githubPath && rf.name === lf.name));
+          if (!exists) mergedFiles.push(lf);
         });
         notes = {
           text: sameText ? rem.text : (rem.text + '\n\n--- Konflikt: lokale Fassung ---\n' + notes.text),
@@ -1295,8 +1314,9 @@ async function notesPull(){
     else {
       const rem = await notesDecode(r);
       const changed = rem.text !== notes.text || JSON.stringify(rem.files) !== JSON.stringify(notes.files);
-      if (rem.updated > notes.updated && changed) { notes = rem; saveNotesLocal(); showNotesContent(); }
-      else if (changed) pushAfter = true;
+      const localEmpty = !notes.text && (!notes.files || !notes.files.length);
+      if ((localEmpty || rem.updated > notes.updated) && changed) { notes = rem; saveNotesLocal(); showNotesContent(); }
+      else if (changed && !localEmpty) pushAfter = true;
     }
     if ($('notesDlg').open) setNotesStatus(notesIdleStatus());
   } catch(e){ if ($('notesDlg').open) setNotesStatus('Notizen konnten nicht geladen werden: ' + e.message, true); }
@@ -1357,6 +1377,85 @@ if (clearAttachmentsBtn) {
       setNotesStatus('Fehler beim Bereinigen des Ordners: ' + e.message, true);
     }
   };
+}
+
+async function syncNotesAndAttachmentsFromGitHub(silent = false) {
+  if (!notesSyncOn()) {
+    if (!silent) setNotesStatus('Funktion nicht verfügbar: Kein verschlüsselter GitHub-Sync aktiv.', true);
+    return;
+  }
+  const syncAttachmentsBtn = $('notesSyncAttachmentsBtn');
+  if (syncAttachmentsBtn) syncAttachmentsBtn.disabled = true;
+  if (!silent || $('notesDlg')?.open) setNotesStatus('Suche und lade Dateien aus GitHub…');
+  try {
+    // Erst notizen.json prüfen/aktualisieren
+    try {
+      const r = await githubRequest('GET', null, notesPath());
+      if (r && r.content) {
+        const rem = await notesDecode(r);
+        if (!notes.text && rem.text) notes.text = rem.text;
+        rem.files.forEach(rf => {
+          const exists = (notes.files || []).some(lf => (rf.githubPath && lf.githubPath === rf.githubPath) || (!rf.githubPath && !lf.githubPath && rf.name === lf.name));
+          if (!exists) notes.files.push(rf);
+        });
+      }
+    } catch(e) {}
+
+    // Zusätzlich direkt den attachments-Ordner auf GitHub scannen
+    const basePath = githubConfig.path.trim().replace(/[^/]*$/, '');
+    const attachmentsDir = basePath + 'attachments';
+    const dirContents = await githubRequest('GET', null, attachmentsDir);
+    let addedCount = 0;
+    let errorCount = 0;
+
+    if (Array.isArray(dirContents)) {
+      const existingPaths = new Set((notes.files || []).map(f => f.githubPath).filter(Boolean));
+      for (const item of dirContents) {
+        if (item && item.type === 'file' && item.path && !existingPaths.has(item.path)) {
+          try {
+            const dec = await fetchDecryptedAttachment({ githubPath: item.path });
+            if (dec && dec.name) {
+              notes.files.push({
+                name: dec.name,
+                size: dec.size || item.size || 0,
+                type: dec.type || 'application/octet-stream',
+                githubPath: item.path
+              });
+              existingPaths.add(item.path);
+              addedCount++;
+            }
+          } catch(e) {
+            errorCount++;
+            console.warn('Anhang konnte nicht entschlüsselt werden:', item.path, e);
+          }
+        }
+      }
+    }
+
+    notes.updated = Date.now();
+    saveNotesLocal();
+    if ($('notesText') && $('notesText').value !== notes.text) $('notesText').value = notes.text;
+    renderNotesAttachments();
+
+    if (addedCount > 0) {
+      notesDirty = true;
+      await notesPush();
+      if (!silent || $('notesDlg')?.open) {
+        setNotesStatus(addedCount + ' fehlende Datei(en) aus GitHub wiederhergestellt.' + (errorCount ? ' (' + errorCount + ' nicht lesbar)' : ''));
+      }
+    } else if (!silent || $('notesDlg')?.open) {
+      setNotesStatus('Abgleich abgeschlossen: Alle ' + (notes.files ? notes.files.length : 0) + ' Datei(en) sind bereits vorhanden.' + (errorCount ? ' (' + errorCount + ' nicht lesbar)' : ''));
+    }
+  } catch(e) {
+    if (!silent || $('notesDlg')?.open) setNotesStatus('Fehler beim Laden aus GitHub: ' + e.message, true);
+  } finally {
+    updateNotesUiState();
+  }
+}
+
+const syncAttachmentsBtn = $('notesSyncAttachmentsBtn');
+if (syncAttachmentsBtn) {
+  syncAttachmentsBtn.onclick = () => syncNotesAndAttachmentsFromGitHub(false);
 }
 
 const fileInElem = $('notesFileIn');
