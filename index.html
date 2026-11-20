@@ -269,7 +269,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
       <div class="greet-row"><h1 id="greet">Hallo</h1><button class="icon-btn" id="notesBtn" type="button" title="Notizen" aria-label="Notizen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M8.5 10h7M8.5 14h7M8.5 17.5h4"/></svg></button></div>
       <div id="date"></div>
     </div>
-    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden>v1.2.0</span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
+    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden>v1.2.1</span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
   </header>
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
@@ -345,7 +345,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
 <dialog id="finnhubDlg">
   <form method="dialog">
     <h2>Finnhub Aktienkurse</h2>
-    <p style="color:var(--muted);font-size:.9rem;margin-top:0">Für Live-Aktienkurse direkt im Browser wird ein kostenloser API-Key von <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">finnhub.io</a> benötigt. Der Key wird ausschließlich lokal in diesem Browser gespeichert.</p>
+    <p style="color:var(--muted);font-size:.9rem;margin-top:0">Für Live-Aktienkurse direkt im Browser wird ein kostenloser API-Key von <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">finnhub.io</a> benötigt. Bei aktivem verschlüsseltem GitHub-Sync wird der Key verschlüsselt in einer eigenen Datei (<code>finnhub-key.enc</code>) auf GitHub gespeichert und automatisch eingetragen.</p>
     <label>Finnhub API-Key
       <input id="finnhubKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="z. B. ct1234567890abcdef…">
     </label>
@@ -445,7 +445,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   </form>
 </dialog>
 <script>
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.2.1';
 const KEY = 'startseite-v2', OLD_KEY = 'startseite-favoriten', NCOLS = 4;
 const SETTINGS_DB = 'startseite-startdatei-v1', SETTINGS_STORE = 'settings';
 const $ = id => document.getElementById(id);
@@ -596,12 +596,81 @@ async function settingsSet(key, value){
 let cols = load(), editing = false, editCol = 0, editIdx = -1, editSubIdx = -1, drag = null;
 const openFolders = new Set();
 
-/* ---- Finnhub Kursabfrage (Aktualisierung alle 2 Minuten) ---- */
+/* ---- Finnhub Kursabfrage & verschlüsselter GitHub-Sync ---- */
 const FINNHUB_KEY_STORAGE = 'startseite-finnhub-key-v1';
+const FINNHUB_CLEARED_STORAGE = 'startseite-finnhub-cleared-v1';
 const STOCK_REFRESH_MS = 2 * 60 * 1000; // 2 Minuten
 let finnhubApiKey = (localStorage.getItem(FINNHUB_KEY_STORAGE) || '').trim();
+let finnhubExplicitlyCleared = localStorage.getItem(FINNHUB_CLEARED_STORAGE) === '1';
 const stockCache = new Map();
 const stockInFlight = new Map();
+
+function finnhubKeyPath(){
+  return (githubConfig.path || 'startseite-favoriten.json').trim().replace(/[^/]*$/, '') + 'finnhub-key.enc';
+}
+const finnhubSyncOn = () => !!(githubConfig.enabled && githubConfig.token && githubConfig.encrypt && githubConfig.password);
+
+function setFinnhubLocalKey(key, { explicitClear = false } = {}){
+  finnhubApiKey = (key || '').trim();
+  if (finnhubApiKey) {
+    localStorage.setItem(FINNHUB_KEY_STORAGE, finnhubApiKey);
+    finnhubExplicitlyCleared = false;
+    localStorage.removeItem(FINNHUB_CLEARED_STORAGE);
+  } else {
+    localStorage.removeItem(FINNHUB_KEY_STORAGE);
+    if (explicitClear) {
+      finnhubExplicitlyCleared = true;
+      localStorage.setItem(FINNHUB_CLEARED_STORAGE, '1');
+    }
+  }
+  stockCache.clear();
+  updateFinnhubBtnState();
+  render();
+  if (finnhubApiKey) refreshAllStocks(true);
+}
+
+async function pushFinnhubKeyToGitHub(key){
+  if (!finnhubSyncOn()) return;
+  const path = finnhubKeyPath();
+  const old = await githubRequest('GET', null, path);
+  if (!key) {
+    if (old && old.sha) {
+      await githubRequest('DELETE', { message: 'Remove Finnhub API key', sha: old.sha, branch: githubConfig.branch }, path);
+    }
+    return;
+  }
+  const payload = JSON.stringify({ apiKey: key, updated: Date.now() });
+  const encrypted = await encryptText(payload, githubConfig.password);
+  const body = { message: 'Update encrypted Finnhub API key', content: to64(encrypted), branch: githubConfig.branch };
+  if (old && old.sha) body.sha = old.sha;
+  await githubRequest('PUT', body, path);
+}
+
+async function pullFinnhubKeyFromGitHub({ forceOverwrite = false } = {}){
+  if (!finnhubSyncOn()) return null;
+  const path = finnhubKeyPath();
+  const r = await githubRequest('GET', null, path);
+  if (!r || !r.content) return null;
+  const raw = JSON.parse(from64(r.content));
+  if (!(raw && raw.format === ENC_FORMAT)) {
+    throw Error('Die Finnhub-Datei auf GitHub ist nicht verschlüsselt.');
+  }
+  const dec = JSON.parse(await decryptText(raw, githubConfig.password));
+  const remoteKey = (dec && typeof dec.apiKey === 'string') ? dec.apiKey.trim() : '';
+  if (!remoteKey) return null;
+
+  if (forceOverwrite || !finnhubApiKey) {
+    if (finnhubExplicitlyCleared && !forceOverwrite && finnhubApiKey === '') {
+      // Nur beim allerersten Laden ohne lokalen Key übernehmen, wenn nicht explizit gelöscht
+      if (!localStorage.getItem(FINNHUB_KEY_STORAGE) && !finnhubExplicitlyCleared) {
+        setFinnhubLocalKey(remoteKey);
+      }
+    } else {
+      setFinnhubLocalKey(remoteKey);
+    }
+  }
+  return remoteKey;
+}
 
 function updateFinnhubBtnState(){
   const btn = $('finnhubBtn');
@@ -611,7 +680,9 @@ function updateFinnhubBtnState(){
   if (finnhubApiKey) {
     sp.className = 'status active';
     sp.textContent = 'aktiv';
-    btn.title = 'Finnhub API-Key hinterlegt (Aktualisierung alle 2 Min.)';
+    btn.title = finnhubSyncOn()
+      ? 'Finnhub API-Key aktiv & verschlüsselt auf GitHub synchronisiert'
+      : 'Finnhub API-Key hinterlegt (Aktualisierung alle 2 Min.)';
   } else {
     sp.className = 'status inactive';
     sp.textContent = 'Key fehlt';
@@ -627,21 +698,38 @@ function finnhubMsg(text, cls = ''){
   el.className = cls;
 }
 
-$('finnhubBtn').onclick = () => {
+$('finnhubBtn').onclick = async () => {
   $('finnhubKeyInput').value = finnhubApiKey;
-  finnhubMsg(finnhubApiKey ? 'API-Key ist gespeichert.' : 'Noch kein API-Key hinterlegt.');
+  finnhubMsg(finnhubApiKey
+    ? (finnhubSyncOn() ? 'API-Key ist lokal & verschlüsselt auf GitHub gespeichert.' : 'API-Key ist lokal gespeichert.')
+    : 'Noch kein API-Key hinterlegt.');
   $('finnhubDlg').showModal();
   $('finnhubKeyInput').focus();
+  if (!finnhubApiKey && finnhubSyncOn()) {
+    try {
+      const pulled = await pullFinnhubKeyFromGitHub({ forceOverwrite: true });
+      if (pulled) {
+        $('finnhubKeyInput').value = pulled;
+        finnhubMsg('API-Key automatisch von GitHub entschlüsselt und eingetragen.', 'ok');
+      }
+    } catch(e) {}
+  }
 };
 $('finnhubCancelBtn').onclick = () => $('finnhubDlg').close();
-$('finnhubClearBtn').onclick = () => {
-  finnhubApiKey = '';
-  localStorage.removeItem(FINNHUB_KEY_STORAGE);
+$('finnhubClearBtn').onclick = async () => {
+  setFinnhubLocalKey('', { explicitClear: true });
   $('finnhubKeyInput').value = '';
-  stockCache.clear();
-  updateFinnhubBtnState();
-  finnhubMsg('API-Key wurde entfernt.');
-  render();
+  if (finnhubSyncOn()) {
+    finnhubMsg('Entferne verschlüsselten Key von GitHub…');
+    try {
+      await pushFinnhubKeyToGitHub('');
+      finnhubMsg('API-Key lokal und auf GitHub entfernt.', 'ok');
+    } catch(e) {
+      finnhubMsg('Lokal entfernt, GitHub-Fehler: ' + e.message, 'error');
+    }
+  } else {
+    finnhubMsg('API-Key wurde entfernt.');
+  }
 };
 $('finnhubTestBtn').onclick = async () => {
   const testKey = $('finnhubKeyInput').value.trim();
@@ -670,25 +758,23 @@ $('finnhubTestBtn').onclick = async () => {
     finnhubMsg('Netzwerkfehler: ' + e.message, 'error');
   }
 };
-$('finnhubSaveBtn').onclick = () => {
-  finnhubApiKey = $('finnhubKeyInput').value.trim();
-  if (finnhubApiKey) {
-    localStorage.setItem(FINNHUB_KEY_STORAGE, finnhubApiKey);
-  } else {
-    localStorage.removeItem(FINNHUB_KEY_STORAGE);
-  }
-  stockCache.clear();
-  updateFinnhubBtnState();
+$('finnhubSaveBtn').onclick = async () => {
+  const newKey = $('finnhubKeyInput').value.trim();
+  setFinnhubLocalKey(newKey, { explicitClear: !newKey });
   $('finnhubDlg').close();
-  render();
-  refreshAllStocks(true);
+  if (finnhubSyncOn()) {
+    try {
+      await pushFinnhubKeyToGitHub(newKey);
+    } catch(e) {
+      console.error('Finnhub-Key GitHub-Sync:', e);
+    }
+  }
 };
 
 function formatStockPrice(price, symbol){
   if (typeof price !== 'number' || !isFinite(price)) return '';
   const num = price.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const sym = String(symbol || '').toUpperCase();
-  // Heuristik für gängige Börsenkürzel
   let cur = '$';
   if (/\.(DE|F|MU|BE|DU|HM|HA|PA|AS|MI|MC|VI|BR|LS|HE)$/i.test(sym)) cur = '€';
   else if (/\.SW$/i.test(sym)) cur = 'CHF';
@@ -730,7 +816,6 @@ async function fetchFinnhubQuote(symbol){
         return cached && !cached.error ? cached : {error: 'HTTP ' + resp.status, ts: Date.now()};
       }
       const data = await resp.json();
-      // Finnhub liefert c = current price, dp = percent change, d = change, pc = previous close
       if (data && typeof data.c === 'number' && data.c > 0) {
         let changePct = typeof data.dp === 'number' ? data.dp : null;
         if (changePct === null && typeof data.pc === 'number' && data.pc !== 0) {
@@ -1558,7 +1643,10 @@ $('syncCloseBtn').onclick = () => $('syncDlg').close();
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     if (syncHandle && syncReady && !editing && !$('dlg').open) syncPull();
-    if (githubConfig.enabled && !editing && !$('dlg').open) githubPull();
+    if (githubConfig.enabled && !editing && !$('dlg').open) {
+      githubPull();
+      if (finnhubSyncOn()) pullFinnhubKeyFromGitHub().catch(() => {});
+    }
     refreshAllStocks();
   }
 });
@@ -1584,7 +1672,11 @@ async function encryptText(text,pw){if(!pw)throw Error('Für die Verschlüsselun
 async function decryptText(o,pw){if(!pw)throw Error('Die GitHub-Datei ist verschlüsselt. Bitte das Verschlüsselungs-Passwort eintragen.');if(!(o.iterations>=100000&&o.iterations<=2000000)||!o.salt||!o.iv||!o.ciphertext)throw Error('Die verschlüsselte GitHub-Datei ist beschädigt.');const key=await encKey(pw,o.salt,o.iterations);try{return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBytes(o.iv)},key,b64ToBytes(o.ciphertext)))}catch(e){throw Error('Entschlüsselung fehlgeschlagen: Das Passwort ist falsch oder die Datei ist beschädigt.')}}
 async function githubGuard(old){if(!old||!old.content)return;let raw;try{raw=JSON.parse(from64(old.content))}catch(e){return}if(raw&&raw.format===ENC_FORMAT)try{await decryptText(raw,githubConfig.password)}catch(e){throw Error('Das Passwort passt nicht zur verschlüsselten GitHub-Datei. Es wurde nichts überschrieben.')}}
 async function githubRequest(method='GET',body=null,path){const o={method,headers:githubHeaders()};if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}const u=githubUrl(path)+(method==='GET'?'?ref='+encodeURIComponent(githubConfig.branch)+'&_='+Date.now():'');const r=await fetch(u,o);if(r.status===404&&method==='GET')return null;const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||'GitHub-Fehler '+r.status);return d}
-async function githubPull(show=false,dry=false){if(!githubConfig.enabled||(!githubConfig.autoPull&&!dry)||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const raw=JSON.parse(from64(r.content)),wasEnc=!!(raw&&raw.format===ENC_FORMAT),d=fromData(wasEnc?JSON.parse(await decryptText(raw,githubConfig.password)):raw);if(!d)throw Error('GitHub-Datei enthält keine gültigen Favoriten.');if(!dry){githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();syncSchedule();render()}if(wasEnc!==!!githubConfig.encrypt){githubLast='';githubSchedule()}}githubState('active');if(show)githubMsg(dry?'Verbindung erfolgreich. Die Datei enthält '+countItems(d)+' Einträge'+(wasEnc?' (verschlüsselt, Passwort stimmt)':'')+'. Es wurde nichts verändert.':'Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}}
+async function githubPull(show=false,dry=false){if(!githubConfig.enabled||(!githubConfig.autoPull&&!dry)||githubBusy)return;githubBusy=true;githubState('busy');try{const r=await githubRequest();if(!r){githubState('active');if(show)githubMsg('Verbindung erfolgreich. Die Datei wird beim ersten Speichern angelegt.','ok');return}const raw=JSON.parse(from64(r.content)),wasEnc=!!(raw&&raw.format===ENC_FORMAT),d=fromData(wasEnc?JSON.parse(await decryptText(raw,githubConfig.password)):raw);if(!d)throw Error('GitHub-Datei enthält keine gültigen Favoriten.');if(!dry){githubLast=canon(d);if(githubLast!==canon(cols)){cols=d;saveLocal();syncSchedule();render()}if(wasEnc!==!!githubConfig.encrypt){githubLast='';githubSchedule()}}githubState('active');if(show)githubMsg(dry?'Verbindung erfolgreich. Die Datei enthält '+countItems(d)+' Einträge'+(wasEnc?' (verschlüsselt, Passwort stimmt)':'')+'. Es wurde nichts verändert.':'Verbindung und Datei erfolgreich geprüft.','ok')}catch(e){githubState('error');if(show)githubMsg(e.message,'error')}finally{githubBusy=false}
+  if (!dry && finnhubSyncOn()) {
+    try { await pullFinnhubKeyFromGitHub(); } catch(e) { console.error('Finnhub-Key Pull:', e); }
+  }
+}
 async function githubPush(force=false){if(!githubConfig.enabled||!githubConfig.autoPush||githubBusy)return;const j=canon(cols);if(!force&&j===githubLast)return;githubBusy=true;githubState('busy');try{const old=await githubRequest();await githubGuard(old);const text=githubConfig.encrypt?await encryptText(j,githubConfig.password):j,body={message:'Update',content:to64(text),branch:githubConfig.branch};if(old&&old.sha)body.sha=old.sha;await githubRequest('PUT',body);githubLast=j;githubState('active')}catch(e){githubState('error');console.error('GitHub-Sync',e)}finally{githubBusy=false}}
 function githubSchedule(){if(githubConfig.enabled&&githubConfig.autoPush){clearTimeout(githubTimer);githubTimer=setTimeout(()=>githubPush(),800)}}
 function githubFill(){$('githubRepo').value=githubConfig.repo;$('githubBranch').value=githubConfig.branch;$('githubPath').value=githubConfig.path;$('githubToken').value=githubConfig.token;$('githubAutoPull').checked=githubConfig.autoPull;$('githubAutoPush').checked=githubConfig.autoPush;$('githubEncrypt').checked=githubConfig.enabled?!!githubConfig.encrypt:true;$('githubPassword').value=githubConfig.password||'';githubEncToggle();githubMsg(githubConfig.enabled?'GitHub-Sync ist aktiv.':'GitHub-Sync ist noch nicht aktiviert.')}
@@ -1602,13 +1694,21 @@ $('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/
     if(!ok)return;
   }
   const wasEnabled = githubConfig.enabled;
-  githubConfig=c;githubSave();githubState('active');$('githubDlg').close();
+  githubConfig=c;githubSave();githubState('active');updateFinnhubBtnState();$('githubDlg').close();
   if(c.autoPull){
     await githubPull();
     await notesPull();
   }else if(c.autoPush){
     await githubPush(true);
     await notesPush();
+  }
+  if (finnhubSyncOn()) {
+    try {
+      const remoteFhKey = await pullFinnhubKeyFromGitHub({ forceOverwrite: !finnhubApiKey && !finnhubExplicitlyCleared });
+      if (!remoteFhKey && finnhubApiKey && c.autoPush) {
+        await pushFinnhubKeyToGitHub(finnhubApiKey);
+      }
+    } catch(e) { console.error('Finnhub-Key Sync beim Speichern:', e); }
   }
   if(!wasEnabled && notesSyncOn()){
     await syncNotesAndAttachmentsFromGitHub(true);
@@ -1625,7 +1725,7 @@ $('githubStopBtn').onclick=()=>{
     cols=emptyCols();
     render();
   }
-  githubState('off');githubFill();
+  githubState('off');updateFinnhubBtnState();githubFill();
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
 
@@ -2272,7 +2372,12 @@ setInterval(() => {
   }
 }, 5000);
 
-setInterval(() => { if (document.visibilityState === 'visible' && githubConfig.enabled && githubConfig.autoPull && !editing && !$('dlg').open && !$('githubDlg').open) githubPull(); }, 15000);
+setInterval(() => {
+  if (document.visibilityState === 'visible' && githubConfig.enabled && githubConfig.autoPull && !editing && !$('dlg').open && !$('githubDlg').open) {
+    githubPull();
+    if (finnhubSyncOn()) pullFinnhubKeyFromGitHub().catch(() => {});
+  }
+}, 15000);
 
 // Aktienkurse alle 2 Minuten (120.000 ms) aktualisieren
 setInterval(() => {
@@ -2280,7 +2385,18 @@ setInterval(() => {
 }, STOCK_REFRESH_MS);
 
 updateFinnhubBtnState();
-(async () => { render(); try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){} await syncInit(); if (githubConfig.enabled && githubConfig.autoPull) { await githubPull(); notesPull(); } })();
+(async () => {
+  render();
+  try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){}
+  await syncInit();
+  if (githubConfig.enabled && githubConfig.autoPull) {
+    await githubPull();
+    notesPull();
+  }
+  if (finnhubSyncOn()) {
+    try { await pullFinnhubKeyFromGitHub(); } catch(e) {}
+  }
+})();
 </script>
 </body>
 </html>
