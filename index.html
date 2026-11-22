@@ -92,6 +92,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 #cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:start}
 @media (max-width:920px){#cols{grid-template-columns:minmax(0,1fr)}}
 .col h2{margin:0 0 12px;padding:0 2px;font-size:1.05rem;line-height:1.4;min-height:1.47rem;font-weight:600}
+.col .title-wrap{position:relative;margin:0 0 12px}
+.col .title-wrap .title-in{margin:0}
 .col .title-in{width:100%;margin:0 0 12px;padding:8px 10px;font:inherit;font-weight:600;color:var(--ink);background:transparent;border:1px dashed var(--line);border-radius:8px}
 .col .title-in:focus{border-color:var(--accent);outline:none}
 .list{min-height:8px}
@@ -716,12 +718,38 @@ function render(){
     const el = document.createElement('section');
     el.className = 'col' + (isEmpty ? ' empty-col' : '');
     if (editing) {
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'title-wrap';
       const inp = document.createElement('input');
       inp.className = 'title-in'; inp.value = col.title; inp.maxLength = 40;
       inp.placeholder = 'Überschrift Spalte ' + (c + 1) + ' (optional)';
       inp.setAttribute('aria-label', 'Überschrift Spalte ' + (c + 1));
-      inp.oninput = () => { col.title = inp.value.trim(); persist(); };
-      el.appendChild(inp);
+
+      const titleTools = document.createElement('div');
+      titleTools.className = 'tools';
+      const delTitle = document.createElement('button');
+      delTitle.type = 'button';
+      delTitle.className = 'del';
+      delTitle.textContent = '✕';
+      delTitle.title = 'Überschrift löschen';
+      delTitle.setAttribute('aria-label', 'Überschrift Spalte ' + (c + 1) + ' löschen');
+      delTitle.hidden = !col.title;
+      delTitle.onclick = () => {
+        col.title = '';
+        inp.value = '';
+        delTitle.hidden = true;
+        persist();
+      };
+
+      inp.oninput = () => {
+        col.title = inp.value.trim();
+        delTitle.hidden = !col.title;
+        persist();
+      };
+
+      titleTools.appendChild(delTitle);
+      titleWrap.append(inp, titleTools);
+      el.appendChild(titleWrap);
     } else {
       const h = document.createElement('h2'); h.textContent = col.title; el.appendChild(h);
     }
