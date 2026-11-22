@@ -70,7 +70,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .primary.dangerfill{background:var(--danger)}
 .primary:disabled{opacity:.45;cursor:not-allowed}
 .head-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
-.ver-tag{font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums;user-select:none}
+.ver-tag{position:fixed;left:10px;bottom:6px;font-size:.7rem;color:var(--muted);opacity:.4;font-variant-numeric:tabular-nums;user-select:none;pointer-events:none;z-index:1}
 .ver-tag::before{content:var(--app-version)}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 0 5px 1px rgba(34,197,94,.7)}
 .sync-dot.err{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.25),0 0 5px 1px rgba(239,68,68,.7)}
@@ -273,7 +273,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
       <div class="greet-row"><h1 id="greet">Hallo</h1><button class="icon-btn" id="notesBtn" type="button" title="Notizen" aria-label="Notizen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M8.5 10h7M8.5 14h7M8.5 17.5h4"/></svg></button></div>
       <div id="date"></div>
     </div>
-    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><span id="verTag" class="ver-tag" hidden></span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
+    <div class="head-right"><span id="syncDot" class="sync-dot" hidden role="img" aria-label="Synchronisierung aktiv"></span><button class="link-btn" id="editBtn" aria-pressed="false">Bearbeiten</button></div>
   </header>
   <div id="toolbar">
     <button class="link-btn" id="exportBtn">Exportieren</button>
@@ -1407,7 +1407,6 @@ $('editBtn').onclick = () => {
   editing = !editing;
   $('editBtn').setAttribute('aria-pressed', editing);
   $('editBtn').textContent = editing ? 'Fertig' : 'Bearbeiten';
-  $('verTag').hidden = !editing;
   $('toolbar').classList.toggle('show', editing);
   updateSyncDot();
   render();
@@ -2386,5 +2385,6 @@ setInterval(() => {
   if (githubConfig.enabled && githubConfig.autoPull) { await githubPull(); notesPull(); }
 })();
 </script>
+<span class="ver-tag" aria-hidden="true"></span>
 </body>
 </html>
