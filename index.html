@@ -27,7 +27,7 @@
 })();
 </script>
 <style>
-:root{--app-version:"v1.3.17";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
+:root{--app-version:"v1.3.18";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;--pos:#4ade80;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -888,7 +888,7 @@ function updateStockBadgeDom(badgeEl, symbol, quote){
   if (link) {
     const portal = stockPortal(symbol, badgeEl.dataset.mode || 'auto', quote);
     link.href = portal.url;
-    link.title = 'Öffnet ' + portal.name;
+    link.removeAttribute('title');
   }
   if (!quote) {
     const ld = document.createElement('span');
@@ -901,12 +901,14 @@ function updateStockBadgeDom(badgeEl, symbol, quote){
     const err = document.createElement('span');
     err.className = 'stock-loading';
     err.textContent = 'n/v';
-    err.title = 'Kurs für ' + symbol + ' nicht verfügbar (' + (quote.error || 'Fehler') + ')';
+    const errTip = 'Kurs für ' + symbol + ' nicht verfügbar (' + (quote.error || 'Fehler') + ')';
+    if (link) link.title = errTip; else err.title = errTip;
     badgeEl.appendChild(err);
     return;
   }
   if (Number.isFinite(quote.ts)) {
-    badgeEl.title = 'Stand: ' + new Date(quote.ts).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) + (quote.source ? ' · Quelle: ' + quote.source : '');
+    const tip = 'Stand: ' + new Date(quote.ts).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) + (quote.source ? ' · Quelle: ' + quote.source : '');
+    (link || badgeEl).title = tip;
     if (Date.now() - quote.ts > STALE_AFTER_MS) badgeEl.classList.add('stale');
   }
   const pr = document.createElement('span');
