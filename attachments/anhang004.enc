@@ -1,0 +1,9 @@
+{
+  "format": "startseite-encrypted",
+  "version": 1,
+  "kdf": "PBKDF2-SHA256",
+  "iterations": 600000,
+  "salt": "MxJoLSPlMG1VX8B4fnhjIA==",
+  "iv": "T7nj/E3W7pw2OosL",
+  "ciphertext": "nzHrzmxGfuJRCQPyciWwbb1avQ4UHV9QYba7acZCCvwq+gNr9IFxSQ6avWBP3t12IrKQhXM8XRtL0PpAEu0MaosvhW0A/NPoyhoMMhl2w3dj8lHSIS+ZoCnRLjeOlNRSdfgnKOvMC16O7JMYYNyhbWiNBMWN39F1FwAS6ICgSu6zV/6UOmw6Voj9szGOx1viHimTr5vWQgr7NA+N62TErgW9odT/Rm1iGsnzSy3zV7vDARGJeUgwSt5W/d7MINSOLcyLKtDiIKGiEW+ZSgNKQYG42zae0Bi0KJ341leoLU42dISI4F1JDlCT1BehXITbaaHRQFVmGzXvxBR91G6ye2pkGFrUZ+DCs2rPCsXxguLTRCkhSwPJj1BW+MAZqkcov/cWf+vIHaWywjLlQnkdLZWc4qcuM01vOebYiHMl94PRqUiEE5NSWs7d1fQSOcAnLk9Uct/qUDtLAXlbtJl9Qi4fNZBoq9FT6d5+FXm3/XvQUCMThyAkSlL4ACuQWpq2WPY43K13zGB2KvTpvzsQcM+KQMSaIiQZDh0qk9pmMO8="
+}
