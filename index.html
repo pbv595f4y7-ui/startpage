@@ -27,7 +27,7 @@
 })();
 </script>
 <style>
-:root{--app-version:"v1.3.16";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
+:root{--app-version:"v1.3.17";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;--pos:#4ade80;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -512,7 +512,7 @@ function cleanLeafItem(x){
   if ((x.type === 'stock' || urlSym) && resolvedSym && /^[A-Z0-9.\-^=:]+$/.test(resolvedSym)) {
     const rawName = typeof x.name === 'string' ? x.name.trim() : '';
     const isJustYahooUrl = /^https?:\/\/(www\.)?finance\.yahoo\.com\/quote\//i.test(rawName);
-    const cleanName = (!rawName || isJustYahooUrl) ? resolvedSym : rawName.slice(0, 40);
+    const cleanName = (!rawName || isJustYahooUrl) ? '' : rawName.slice(0, 40);
     const entry = {
       type: 'stock',
       symbol: resolvedSym,
@@ -1113,7 +1113,7 @@ function makeTile(c, i, it, subIdx = -1){
       drag = {c, i, subIdx};
       tile.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', it.name);
+      e.dataTransfer.setData('text/plain', it.name || it.symbol || '');
     });
     tile.addEventListener('dragend', () => { drag = null; render(); });
 
@@ -1241,15 +1241,15 @@ function makeTile(c, i, it, subIdx = -1){
   const curIdx = isSub ? subIdx : i;
 
   const tools = document.createElement('div'); tools.className = 'tools';
-  const up = document.createElement('button'); up.className = 'mob-move'; up.type = 'button'; up.textContent = '↑'; up.title = 'Nach oben'; up.setAttribute('aria-label', it.name + ' nach oben');
+  const up = document.createElement('button'); up.className = 'mob-move'; up.type = 'button'; up.textContent = '↑'; up.title = 'Nach oben'; up.setAttribute('aria-label', (it.name || it.symbol) + ' nach oben');
   up.disabled = curIdx === 0;
   up.onclick = () => moveStep(c, i, -1, subIdx);
-  const dn = document.createElement('button'); dn.className = 'mob-move'; dn.type = 'button'; dn.textContent = '↓'; dn.title = 'Nach unten'; dn.setAttribute('aria-label', it.name + ' nach unten');
+  const dn = document.createElement('button'); dn.className = 'mob-move'; dn.type = 'button'; dn.textContent = '↓'; dn.title = 'Nach unten'; dn.setAttribute('aria-label', (it.name || it.symbol) + ' nach unten');
   dn.disabled = curIdx === listLen - 1;
   dn.onclick = () => moveStep(c, i, 1, subIdx);
-  const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', it.name + ' ändern');
+  const ed = document.createElement('button'); ed.type = 'button'; ed.textContent = '✎'; ed.title = 'Ändern'; ed.setAttribute('aria-label', (it.name || it.symbol) + ' ändern');
   ed.onclick = () => openDlg(c, i, subIdx);
-  const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', it.name + ' löschen');
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '✕'; del.title = 'Löschen'; del.setAttribute('aria-label', (it.name || it.symbol) + ' löschen');
   del.onclick = () => {
     if (isSub) cols[c].items[i].items.splice(subIdx, 1);
     else cols[c].items.splice(i, 1);
@@ -1418,7 +1418,8 @@ function openDlg(c, i, subIdx = -1){
 
   const itemType = item ? (item.type || 'link') : 'link';
   $('fType').value = itemType;
-  $('fName').value = item ? item.name : '';
+  // Bei Aktien ohne eigenen Namen (frühere Versionen speicherten das Symbol als Namen) bleibt das Feld leer
+  $('fName').value = !item ? '' : (itemType === 'stock' && String(item.name || '').trim().toUpperCase() === String(item.symbol || '').trim().toUpperCase() ? '' : item.name);
   $('fUrl').value = (item && itemType === 'link') ? item.url : '';
   $('fSymbol').value = (item && itemType === 'stock') ? (item.symbol || '') : '';
   $('fStockSource').value = (item && itemType === 'stock') ? stockMode(item) : 'auto';
@@ -1522,7 +1523,7 @@ $('form').addEventListener('submit', e => {
     entry = {
       type: 'stock',
       symbol: sym,
-      name: rawName || sym,
+      name: rawName,
       url: yahooQuoteUrl(sym),
       ...getDraftIconConfig()
     };
