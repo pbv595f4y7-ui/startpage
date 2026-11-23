@@ -27,7 +27,7 @@
 })();
 </script>
 <style>
-:root{--app-version:"v1.3.8";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
+:root{--app-version:"v1.3.13";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;--pos:#4ade80;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -73,13 +73,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .stock-quote.stale{opacity:.6}
 .ver-tag{position:fixed;left:10px;bottom:6px;font-size:.7rem;color:var(--muted);opacity:.4;font-variant-numeric:tabular-nums;user-select:none;pointer-events:none;z-index:1}
 .ver-tag::before{content:var(--app-version)}
+@media (max-width:768px){.ver-tag{left:0;right:0;text-align:center;bottom:max(6px,env(safe-area-inset-bottom))}}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 0 5px 1px rgba(34,197,94,.7)}
 .sync-dot.err{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.25),0 0 5px 1px rgba(239,68,68,.7)}
 .link-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)}
-#syncBtn .status.active,#githubBtn .status.active{color:#16803a;font-weight:700}
-#syncBtn .status.inactive,#githubBtn .status.inactive{color:var(--danger);font-weight:700}
+#syncBtn .status.active,#githubBtn .status.active,#finnhubBtn .status.active{color:#16803a;font-weight:700}
+#syncBtn .status.inactive,#githubBtn .status.inactive,#finnhubBtn .status.inactive{color:var(--danger);font-weight:700}
 .gh-check{display:flex;align-items:center;gap:8px;color:var(--ink)} .gh-check input{width:auto;margin:0}
-#githubMessage{min-height:1.3em;font-size:.88rem;color:var(--muted)}
+#githubMessage,#finnhubMessage{min-height:1.3em;font-size:.88rem;color:var(--muted)}
+#finnhubMessage.error{color:var(--danger)}
+#finnhubMessage.ok{color:#16803a}
 #githubMessage.error{color:var(--danger)}
 #githubMessage.ok{color:#16803a}
 
@@ -112,9 +115,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Aktienkurs-Anzeige im Link-Button */
-.stock-quote{display:flex;align-items:baseline;gap:6px;font-size:.84rem;font-variant-numeric:tabular-nums;flex-shrink:0;margin-left:auto}
-.stock-price{font-weight:600;color:var(--ink)}
-.stock-chg{font-weight:600;font-size:.8rem;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--muted)}
+.stock-quote{display:flex;align-items:center;gap:6px;font-size:.84rem;font-variant-numeric:tabular-nums;flex-shrink:0;margin-left:auto;white-space:nowrap}
+.stock-price{font-weight:600;color:var(--ink);white-space:nowrap}
+.stock-chg{font-weight:600;font-size:.8rem;padding:2px 6px;border-radius:6px;white-space:nowrap;background:var(--bg);color:var(--muted)}
 .stock-chg.pos{color:var(--pos);background:rgba(22,128,58,.12)}
 .stock-chg.neg{color:var(--danger);background:rgba(179,55,47,.12)}
 .stock-loading{color:var(--muted);font-size:.8rem}
@@ -281,6 +284,7 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     <button class="link-btn" id="importBtn">Importieren</button>
     <button class="link-btn" id="syncBtn">Sync-Datei</button>
     <button class="link-btn" id="githubBtn">GitHub-Sync</button>
+    <button class="link-btn" id="finnhubBtn">Finnhub-Key</button>
     <button class="link-btn danger" id="clearBtn">Alle Einträge löschen</button>
     <span class="hint">Einträge ziehen, um sie zu sortieren – auch in andere Spalten</span>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -309,10 +313,17 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
       <label>Adresse<input id="fUrl" placeholder="beispiel.de" autocomplete="off" inputmode="url"></label>
     </div>
     <div id="fStockRow" hidden>
-      <label>Aktiensymbol (Yahoo Finance)
-        <input id="fSymbol" maxlength="20" placeholder="z. B. AAPL, MSFT, NVDA, SAP.DE" autocomplete="off" style="text-transform:uppercase">
+      <label>Aktiensymbol
+        <input id="fSymbol" maxlength="20" placeholder="z. B. AAPL, SAP.DE, BTC-USD" autocomplete="off" style="text-transform:uppercase">
       </label>
-      <p class="field-hint">Kurs &amp; Tagesänderung werden schlüssellos über Yahoo Finance (CORS-Proxy) geladen (alle 2 Min.). Klick öffnet finance.yahoo.com.</p>
+      <label>Kursquelle
+        <select id="fStockSource">
+          <option value="auto">Automatisch (Finnhub, sonst Yahoo)</option>
+          <option value="finnhub">Nur Finnhub</option>
+          <option value="yahoo">Nur Yahoo Finance</option>
+        </select>
+      </label>
+      <p class="field-hint">Automatisch: US-Aktien und Krypto kommen zuerst von Finnhub (Key im Bearbeitungsmodus unter „Finnhub-Key“), sonst von Yahoo Finance. Deutsche Börsenplätze (z. B. SAP.DE) gehen direkt zu Yahoo. Krypto als BTC-USD oder BINANCE:BTCUSDT eingeben. Der Klick auf den Eintrag öffnet das Portal, von dem der Kurs geladen wurde. Aktualisierung: Finnhub alle 2 Min., Yahoo alle 15 Min.</p>
     </div>
     <div id="fIconModeRow">
       <label>Favicon-Quelle
@@ -409,6 +420,18 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
   </form>
 </dialog>
 
+<dialog id="finnhubDlg">
+  <form method="dialog">
+    <h2>Finnhub-API-Key</h2>
+    <p style="color:var(--muted);font-size:.9rem">Einen kostenlosen Key gibt es auf finnhub.io. Damit werden US-Aktien (z. B. AAPL) und Krypto (z. B. BTC-USD) abgefragt. Deutsche Börsenplätze (z. B. SAP.DE) und alle Fehlerfälle laufen im Modus „Automatisch“ weiter über Yahoo Finance.</p>
+    <label>API-Key<input id="finnhubInput" type="password" autocomplete="off" spellcheck="false" placeholder="Finnhub-API-Key"></label>
+    <p id="finnhubInfo" style="color:var(--muted);font-size:.85rem;margin:-4px 0 12px"></p>
+    <p id="finnhubMessage"></p>
+    <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button type="button" class="link-btn" id="finnhubTestBtn">Key testen</button><button type="button" class="link-btn danger" id="finnhubRemoveBtn">Key entfernen</button></div>
+    <div class="row"><button type="button" class="link-btn" id="finnhubCancelBtn">Abbrechen</button><button type="button" class="primary" id="finnhubSaveBtn">Speichern</button></div>
+  </form>
+</dialog>
+
 <dialog id="githubDlg">
   <form method="dialog">
     <h2>GitHub-Synchronisierung</h2>
@@ -496,6 +519,7 @@ function cleanLeafItem(x){
       name: cleanName,
       url: yahooQuoteUrl(resolvedSym)
     };
+    if (x.quoteSource === 'finnhub' || x.quoteSource === 'yahoo') entry.quoteSource = x.quoteSource;
     if ((x.iconMode === 'site' || x.iconMode === 'icon') && typeof x.iconValue === 'string' && x.iconValue.trim()) {
       entry.iconMode = x.iconMode;
       entry.iconValue = x.iconValue.trim().slice(0, 500);
@@ -557,7 +581,8 @@ function load(){
   c[0].items = [
     {name:'Wikipedia', url:'https://de.wikipedia.org'},
     {name:'OpenStreetMap', url:'https://www.openstreetmap.org'},
-    {name:'Claude', url:'https://claude.ai'}
+    {name:'Claude', url:'https://claude.ai'},
+    {type:'stock', symbol:'AAPL', name:'Apple', url:'https://finance.yahoo.com/quote/AAPL', iconMode:'site', iconValue:'apple.com'}
   ];
   return c;
 }
@@ -601,25 +626,82 @@ async function settingsSet(key, value){
 let cols = load(), editing = false, editCol = 0, editIdx = -1, editSubIdx = -1, drag = null;
 const openFolders = new Set();
 
-/* ---- Schlüssellose Kursabfrage (Yahoo Finance + Stooq Fallback, alle 2 Minuten) ---- */
-const STOCK_REFRESH_MS = 2 * 60 * 1000; // 2 Minuten
+/* ---- Kursabfrage (Finnhub alle 2 Minuten, Yahoo Finance + Stooq-Fallback nur alle 15 Minuten) ---- */
+const STOCK_REFRESH_MS = 2 * 60 * 1000; // 2 Minuten (Finnhub, Prüftakt)
+const YAHOO_REFRESH_MS = 15 * 60 * 1000; // 15 Minuten (Yahoo/Stooq)
 const CURRENCY_SYMBOLS = {
   EUR: '€', USD: '$', GBP: '£', JPY: '¥', CNY: '¥', CHF: 'CHF',
-  CAD: 'C$', AUD: 'A$', NZD: 'NZ$', SEK: 'kr', NOK: 'kr', DKK: 'kr',
+  USDT: '$', USDC: '$', CAD: 'C$', AUD: 'A$', NZD: 'NZ$', SEK: 'kr', NOK: 'kr', DKK: 'kr',
   PLN: 'zł', CZK: 'Kč', HUF: 'Ft', INR: '₹', KRW: '₩', HKD: 'HK$',
   SGD: 'S$', ZAR: 'R', BRL: 'R$', MXN: 'MX$'
 };
 const stockCache = new Map();
 const stockInFlight = new Map();
 const QUOTES_CACHE_KEY = 'startseite-quotes-v1';
-const STALE_AFTER_MS = 15 * 60 * 1000;
+const FINNHUB_LS = 'startseite-finnhub-key-v1', FINNHUB_TS_LS = 'startseite-finnhub-key-ts-v1';
+function finnhubKey(){ try { return (localStorage.getItem(FINNHUB_LS) || '').trim(); } catch(e){ return ''; } }
+// Krypto-Erkennung: "BTC-USD" (Yahoo-Schreibweise) oder "BINANCE:BTCUSDT" (Finnhub-Schreibweise)
+const CRYPTO_QUOTES = ['USDT', 'USDC', 'USD', 'EUR', 'GBP', 'BTC', 'ETH'];
+function parseCrypto(sym){
+  const raw = String(sym || '').toUpperCase();
+  const hasEx = raw.includes(':');
+  const s = hasEx ? raw.split(':').pop() : raw;
+  let base, quote;
+  if (s.includes('-')) {
+    [base, quote] = s.split('-');
+    if (!base || !quote || !CRYPTO_QUOTES.includes(quote)) return null;
+  } else {
+    if (!hasEx) return null;
+    quote = CRYPTO_QUOTES.find(q => s.endsWith(q) && s.length > q.length);
+    if (!quote) return null;
+    base = s.slice(0, -quote.length);
+  }
+  return /^[A-Z0-9]{2,10}$/.test(base) ? {base, quote} : null;
+}
+// Symbol in der Schreibweise des jeweiligen Anbieters (null = Finnhub kennt es nicht)
+function finnhubSymbolFor(sym){
+  const raw = String(sym || '').toUpperCase();
+  const c = parseCrypto(raw);
+  if (c) return raw.includes(':') ? raw : 'BINANCE:' + c.base + (c.quote === 'USD' ? 'USDT' : c.quote);
+  if (/^[A-Z0-9]+(-[A-Z])?$/.test(raw)) return raw.replace('-', '.');
+  return null;
+}
+function yahooSymbolFor(sym){
+  const raw = String(sym || '').toUpperCase();
+  const c = parseCrypto(raw);
+  return c ? c.base + '-' + (c.quote === 'USDT' || c.quote === 'USDC' ? 'USD' : c.quote) : raw;
+}
+function finnhubCurrency(sym){
+  const c = parseCrypto(sym);
+  if (!c) return 'USD';
+  return (c.quote === 'USDT' || c.quote === 'USDC') ? 'USD' : c.quote;
+}
+function stockMode(it){ return it && (it.quoteSource === 'finnhub' || it.quoteSource === 'yahoo') ? it.quoteSource : 'auto'; }
+function stockKey(sym, mode){ return sym + '@' + (mode || 'auto'); }
+// Reihenfolge der Anbieter: automatisch = Finnhub (nur mit Key und passendem Symbol), sonst Yahoo
+function quotePlan(sym, mode){
+  if (mode === 'finnhub') return ['finnhub'];
+  if (mode === 'yahoo') return ['yahoo'];
+  return (finnhubSymbolFor(sym) && finnhubKey()) ? ['finnhub', 'yahoo'] : ['yahoo'];
+}
+async function fetchFinnhubQuote(fhSym, keyOverride, currency){
+  const key = keyOverride || finnhubKey();
+  if (!key) return null;
+  const url = 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(fhSym) + '&token=' + encodeURIComponent(key);
+  const res = await tryFetch(url, 6000, r => r.json && Number.isFinite(r.json.c) && r.json.c > 0);
+  const j = res.json;
+  const changePct = Number.isFinite(j.dp) ? j.dp
+    : ((Number.isFinite(j.pc) && j.pc > 0) ? ((j.c - j.pc) / j.pc) * 100 : 0);
+  return { price: j.c, changePct, currency: currency || 'USD', ts: Date.now(), source: 'Finnhub' };
+}
+const STALE_AFTER_MS = 20 * 60 * 1000;
 
 function loadQuoteCache(){
   try {
     const o = JSON.parse(localStorage.getItem(QUOTES_CACHE_KEY) || '{}');
     Object.keys(o).forEach(k => {
       const q = o[k];
-      if (q && Number.isFinite(q.price) && Number.isFinite(q.ts)) stockCache.set(k, q);
+      if (q && Number.isFinite(q.price) && Number.isFinite(q.ts)) stockCache.set(k.includes('@') ? k : k + '@auto', q);
     });
   } catch(e){}
 }
@@ -634,7 +716,7 @@ loadQuoteCache();
 
 function formatStockPrice(price, currency){
   if (typeof price !== 'number' || !isFinite(price)) return '';
-  const num = price.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const num = price.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: Math.abs(price) < 1 ? 6 : 2});
   const cur = CURRENCY_SYMBOLS[currency] || currency || '';
   return cur ? (num + ' ' + cur) : num;
 }
@@ -669,7 +751,10 @@ function parseStooqCsv(csvText, sym){
   const close = Number(vals[idxClose]);
   if (!Number.isFinite(close) || close <= 0) return null;
   const open = (idxOpen >= 0 && vals.length > idxOpen) ? Number(vals[idxOpen]) : NaN;
-  const changePct = (Number.isFinite(open) && open > 0) ? ((close - open) / open) * 100 : 0;
+  const idxPrev = headers.findIndex(h => h === 'prev' || h === 'previous' || h === 'p');
+  const prev = (idxPrev >= 0 && vals.length > idxPrev) ? Number(vals[idxPrev]) : NaN;
+  const ref = (Number.isFinite(prev) && prev > 0) ? prev : open;
+  const changePct = (Number.isFinite(ref) && ref > 0) ? ((close - ref) / ref) * 100 : 0;
   let currency = (idxCurr >= 0 && vals.length > idxCurr && vals[idxCurr]) ? vals[idxCurr].toUpperCase() : '';
   if (!currency) {
     if (sym.endsWith('.DE') || sym.endsWith('.F') || sym.endsWith('.PA')) currency = 'EUR';
@@ -678,7 +763,7 @@ function parseStooqCsv(csvText, sym){
     else if (sym.endsWith('.TO')) currency = 'CAD';
     else currency = 'USD';
   }
-  return { price: close, changePct, currency, ts: Date.now() };
+  return { price: close, changePct, currency, ts: Date.now(), source: 'Stooq' };
 }
 
 function proxyUrls(targetUrl){
@@ -719,62 +804,83 @@ async function fetchDirectOrProxy(targetUrl, timeoutMs = 6000, validate){
   catch(_) { return null; }
 }
 
-async function fetchYahooQuote(symbol, force = false){
-  const sym = String(symbol || '').trim().toUpperCase();
-  if (!sym) return null;
-
-  const cached = stockCache.get(sym);
-  if (cached && !cached.error && !force && (Date.now() - cached.ts) < (STOCK_REFRESH_MS - 5000)) {
-    return cached;
-  }
-  if (stockInFlight.has(sym)) return stockInFlight.get(sym);
-
-  const promise = (async () => {
-    // 1. Yahoo Finance Chart API
-    for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
-      const yUrl = 'https://' + host + '/v8/finance/chart/' + encodeURIComponent(sym) + '?range=5d&interval=1d';
-      const res = await fetchDirectOrProxy(yUrl, 6000, r => Number.isFinite(r.json?.chart?.result?.[0]?.meta?.regularMarketPrice));
-      const data = res?.json;
-      const meta = data?.chart?.result?.[0]?.meta;
-      if (meta && Number.isFinite(meta.regularMarketPrice)) {
-        const price = meta.regularMarketPrice;
-        const previous = meta.chartPreviousClose ?? meta.previousClose;
-        const changePct = (Number.isFinite(previous) && previous !== 0)
-          ? ((price - previous) / previous) * 100
-          : 0;
-        const parsed = {
-          price,
-          changePct,
-          currency: meta.currency || '',
-          ts: Date.now()
-        };
-        stockCache.set(sym, parsed);
-        saveQuoteCache();
-        return parsed;
-      }
+async function fetchYahooOnly(sym){
+  const ySym = yahooSymbolFor(sym);
+  for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+    const yUrl = 'https://' + host + '/v8/finance/chart/' + encodeURIComponent(ySym) + '?range=1d&interval=1d';
+    const res = await fetchDirectOrProxy(yUrl, 6000, r => Number.isFinite(r.json?.chart?.result?.[0]?.meta?.regularMarketPrice));
+    const meta = res?.json?.chart?.result?.[0]?.meta;
+    if (meta && Number.isFinite(meta.regularMarketPrice)) {
+      const price = meta.regularMarketPrice;
+      const previous = Number.isFinite(meta.previousClose) ? meta.previousClose : meta.chartPreviousClose;
+      const changePct = (Number.isFinite(previous) && previous !== 0) ? ((price - previous) / previous) * 100 : 0;
+      return { price, changePct, currency: meta.currency || '', ts: Date.now(), source: 'Yahoo' };
     }
-
-    // 2. Fallback: Stooq CSV
-    const stooqSym = toStooqSymbol(sym);
-    const stooqUrl = 'https://stooq.com/q/l/?s=' + encodeURIComponent(stooqSym) + '&f=sd2t2ohlcvn&h&e=csv';
+  }
+  // Letzter Notnagel für Aktien: Stooq (kennt keine Krypto)
+  if (!parseCrypto(sym)) {
+    const stooqUrl = 'https://stooq.com/q/l/?s=' + encodeURIComponent(toStooqSymbol(sym)) + '&f=sd2t2ohlcvpn&h&e=csv';
     const stooqRes = await fetchDirectOrProxy(stooqUrl, 6000, r => !!parseStooqCsv(r.text, sym));
     if (stooqRes?.text) {
       const parsedStooq = parseStooqCsv(stooqRes.text, sym);
-      if (parsedStooq) {
-        stockCache.set(sym, parsedStooq);
-        saveQuoteCache();
-        return parsedStooq;
-      }
+      if (parsedStooq) return parsedStooq;
     }
+  }
+  return null;
+}
 
-    const errObj = {error: 'alle Kurs-Proxys blockiert oder Symbol ungültig', ts: Date.now()};
+async function fetchStockQuote(symbol, mode = 'auto', force = false){
+  const sym = String(symbol || '').trim().toUpperCase();
+  if (!sym) return null;
+  const key = stockKey(sym, mode);
+
+  const cached = stockCache.get(key);
+  const plan = quotePlan(sym, mode);
+  // Anbieter des gespeicherten Kurses (Einträge ohne Quelle stammen von Yahoo/Stooq)
+  const cachedProv = (cached && !cached.error) ? (cached.source === 'Finnhub' ? 'finnhub' : 'yahoo') : null;
+  const cachedAge = cached ? Date.now() - cached.ts : Infinity;
+  if (cachedProv && cachedProv === plan[0]) {
+    // Yahoo wird höchstens alle 15 Minuten abgefragt (auch bei erzwungener Aktualisierung)
+    if (cachedProv === 'yahoo' ? cachedAge < YAHOO_REFRESH_MS : (!force && cachedAge < STOCK_REFRESH_MS - 5000)) return cached;
+  }
+  if (stockInFlight.has(key)) return stockInFlight.get(key);
+
+  const promise = (async () => {
+    const errs = [];
+    for (const provider of plan) {
+      let q = null;
+      if (provider === 'finnhub') {
+        const fh = finnhubSymbolFor(sym);
+        if (!fh) errs.push('Finnhub kennt dieses Symbol nicht (nur US-Aktien und Krypto)');
+        else if (!finnhubKey()) errs.push('Finnhub-Key fehlt (Bearbeitungsmodus → Finnhub-Key)');
+        else {
+          try { q = await fetchFinnhubQuote(fh, null, finnhubCurrency(sym)); }
+          catch(e){ errs.push('Finnhub: ' + (/401|403/.test(e.message) ? 'Key abgelehnt' : /429/.test(e.message) ? 'Limit erreicht' : e.message)); }
+        }
+      } else {
+        // Fallback-Fall (Finnhub schlug fehl): frischen Yahoo-Kurs nicht erneut abrufen
+        q = (cachedProv === 'yahoo' && cachedAge < YAHOO_REFRESH_MS) ? cached : await fetchYahooOnly(sym);
+        if (!q) errs.push('Yahoo: nicht erreichbar oder Symbol ungültig');
+      }
+      if (q) { stockCache.set(key, q); saveQuoteCache(); return q; }
+    }
+    const errObj = {error: errs.join(' · ') || 'Kurs nicht verfügbar', ts: Date.now()};
     return cached && !cached.error ? cached : errObj;
   })().finally(() => {
-    stockInFlight.delete(sym);
+    stockInFlight.delete(key);
   });
 
-  stockInFlight.set(sym, promise);
+  stockInFlight.set(key, promise);
   return promise;
+}
+
+// Link und Name des Portals, von dem der Kurs tatsächlich geladen wurde
+function stockPortal(sym, mode, quote){
+  let src = quote && quote.source;
+  if (!src) src = quotePlan(sym, mode)[0] === 'finnhub' ? 'Finnhub' : 'Yahoo';
+  if (src === 'Finnhub') return {name: 'Finnhub', url: 'https://finnhub.io/'};
+  if (src === 'Stooq') return {name: 'Stooq', url: 'https://stooq.com/q/?s=' + encodeURIComponent(toStooqSymbol(sym))};
+  return {name: 'Yahoo Finance', url: yahooQuoteUrl(yahooSymbolFor(sym))};
 }
 
 function updateStockBadgeDom(badgeEl, symbol, quote){
@@ -782,6 +888,12 @@ function updateStockBadgeDom(badgeEl, symbol, quote){
   badgeEl.innerHTML = '';
   badgeEl.classList.remove('stale');
   badgeEl.removeAttribute('title');
+  const link = badgeEl.closest('a');
+  if (link) {
+    const portal = stockPortal(symbol, badgeEl.dataset.mode || 'auto', quote);
+    link.href = portal.url;
+    link.title = 'Öffnet ' + portal.name;
+  }
   if (!quote) {
     const ld = document.createElement('span');
     ld.className = 'stock-loading';
@@ -793,12 +905,12 @@ function updateStockBadgeDom(badgeEl, symbol, quote){
     const err = document.createElement('span');
     err.className = 'stock-loading';
     err.textContent = 'n/v';
-    err.title = 'Kurs für ' + symbol + ' nicht verfügbar (' + (quote.error || 'Fehler') + ') – Klick öffnet Yahoo Finance';
+    err.title = 'Kurs für ' + symbol + ' nicht verfügbar (' + (quote.error || 'Fehler') + ')';
     badgeEl.appendChild(err);
     return;
   }
   if (Number.isFinite(quote.ts)) {
-    badgeEl.title = 'Stand: ' + new Date(quote.ts).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+    badgeEl.title = 'Stand: ' + new Date(quote.ts).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) + (quote.source ? ' · Quelle: ' + quote.source : '');
     if (Date.now() - quote.ts > STALE_AFTER_MS) badgeEl.classList.add('stale');
   }
   const pr = document.createElement('span');
@@ -815,37 +927,39 @@ function updateStockBadgeDom(badgeEl, symbol, quote){
 }
 
 function collectStockSymbols(){
-  const syms = new Set();
+  const out = new Map();
+  const add = it => {
+    if (it && it.type === 'stock' && it.symbol) {
+      const sym = it.symbol.toUpperCase(), mode = stockMode(it), key = stockKey(sym, mode);
+      if (!out.has(key)) out.set(key, {sym, mode, key});
+    }
+  };
   cols.forEach(col => {
     col.items.forEach(it => {
-      if (it.type === 'stock' && it.symbol) syms.add(it.symbol.toUpperCase());
-      if (it.type === 'folder' && Array.isArray(it.items)) {
-        it.items.forEach(sub => {
-          if (sub.type === 'stock' && sub.symbol) syms.add(sub.symbol.toUpperCase());
-        });
-      }
+      add(it);
+      if (it.type === 'folder' && Array.isArray(it.items)) it.items.forEach(add);
     });
   });
-  return Array.from(syms);
+  return Array.from(out.values());
 }
 
-function paintStock(sym, q){
-  document.querySelectorAll('.stock-quote[data-symbol="' + CSS.escape(sym) + '"]').forEach(el => {
-    updateStockBadgeDom(el, sym, q);
+function paintStock(key, q){
+  document.querySelectorAll('.stock-quote[data-key="' + CSS.escape(key) + '"]').forEach(el => {
+    updateStockBadgeDom(el, el.dataset.symbol, q);
   });
 }
 
 async function refreshAllStocks(force = false){
-  const syms = collectStockSymbols();
-  if (!syms.length) return [];
+  const list = collectStockSymbols();
+  if (!list.length) return [];
 
   // 1. Gespeicherte Kurse sofort anzeigen (bleiben bei Fehlern erhalten)
-  syms.forEach(sym => { const c = stockCache.get(sym); if (c) paintStock(sym, c); });
+  list.forEach(({key}) => { const c = stockCache.get(key); if (c) paintStock(key, c); });
 
   // 2. Live-Abruf, wo nötig
-  return Promise.all(syms.map(async sym => {
-    const q = await fetchYahooQuote(sym, force);
-    paintStock(sym, q);
+  return Promise.all(list.map(async ({sym, mode, key}) => {
+    const q = await fetchStockQuote(sym, mode, force);
+    paintStock(key, q);
     return { sym, quote: q };
   }));
 }
@@ -1107,7 +1221,9 @@ function makeTile(c, i, it, subIdx = -1){
     }
   } else {
     const a = document.createElement('a');
-    a.href = it.type === 'stock' ? yahooQuoteUrl(it.symbol) : it.url;
+    a.href = it.type === 'stock'
+      ? stockPortal(it.symbol.toUpperCase(), stockMode(it), stockCache.get(stockKey(it.symbol.toUpperCase(), stockMode(it)))).url
+      : it.url;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.append(ico, nm);
@@ -1117,8 +1233,10 @@ function makeTile(c, i, it, subIdx = -1){
       const badge = document.createElement('span');
       badge.className = 'stock-quote';
       badge.dataset.symbol = sym;
-      updateStockBadgeDom(badge, sym, stockCache.get(sym) || null);
+      badge.dataset.mode = stockMode(it);
+      badge.dataset.key = stockKey(sym, stockMode(it));
       a.appendChild(badge);
+      updateStockBadgeDom(badge, sym, stockCache.get(badge.dataset.key) || null);
     }
     tile.appendChild(a);
   }
@@ -1307,6 +1425,7 @@ function openDlg(c, i, subIdx = -1){
   $('fName').value = item ? item.name : '';
   $('fUrl').value = (item && itemType === 'link') ? item.url : '';
   $('fSymbol').value = (item && itemType === 'stock') ? (item.symbol || '') : '';
+  $('fStockSource').value = (item && itemType === 'stock') ? stockMode(item) : 'auto';
 
   const mode = item && (item.iconMode === 'site' || item.iconMode === 'icon') ? item.iconMode : 'auto';
   $('fIconMode').value = mode;
@@ -1380,7 +1499,7 @@ $('form').addEventListener('submit', e => {
     const sym = $('fSymbol').value.trim().toUpperCase();
     if (!sym || !/^[A-Z0-9.\-^=:]+$/.test(sym)) {
       e.preventDefault();
-      $('fSymbol').setCustomValidity('Bitte ein gültiges Aktiensymbol eingeben (z. B. AAPL oder SAP.DE).');
+      $('fSymbol').setCustomValidity('Bitte ein gültiges Aktiensymbol eingeben (z. B. AAPL, SAP.DE oder BTC-USD).');
       $('fSymbol').reportValidity();
       return;
     }
@@ -1411,6 +1530,7 @@ $('form').addEventListener('submit', e => {
       url: yahooQuoteUrl(sym),
       ...getDraftIconConfig()
     };
+    if ($('fStockSource').value !== 'auto') entry.quoteSource = $('fStockSource').value;
   } else {
     entry = {name: rawName, url: normalize($('fUrl').value), ...getDraftIconConfig()};
   }
@@ -1742,6 +1862,7 @@ $('githubSaveBtn').onclick=async()=>{const c=githubRead();if(!c.repo.includes('/
   if(!wasEnabled && notesSyncOn()){
     await syncNotesAndAttachmentsFromGitHub(true);
   }
+  await finnhubSync(true);
 };
 $('githubStopBtn').onclick=()=>{
   if(!confirm('GitHub-Sync deaktivieren? Der lokal gespeicherte GitHub-Token wird dabei gelöscht.'))return;
@@ -1757,6 +1878,123 @@ $('githubStopBtn').onclick=()=>{
   githubState('off');githubFill();
 };
 githubLoad();githubState(githubConfig.enabled?'active':'off');
+
+/* ---- Finnhub-Key: lokal + verschlüsselt in eigener GitHub-Datei ---- */
+const finnhubSyncOn = () => githubConfig.enabled && githubConfig.encrypt && !!githubConfig.password;
+const finnhubPath = () => githubConfig.path.trim().replace(/[^/]*$/, '') + 'finnhub-key.json';
+let finnhubBusy = false;
+function finnhubTs(){ try { return Number(localStorage.getItem(FINNHUB_TS_LS)) || 0; } catch(e){ return 0; } }
+function finnhubSetLocal(key, ts){
+  try {
+    if (key) { localStorage.setItem(FINNHUB_LS, key); localStorage.setItem(FINNHUB_TS_LS, String(ts || Date.now())); }
+    else { localStorage.removeItem(FINNHUB_LS); localStorage.removeItem(FINNHUB_TS_LS); }
+  } catch(e){}
+}
+function updateFinnhubBtn(){
+  const b = $('finnhubBtn'), has = !!finnhubKey();
+  b.replaceChildren(document.createTextNode('Finnhub-Key: '));
+  const x = document.createElement('span');
+  x.className = 'status ' + (has ? 'active' : 'inactive');
+  x.textContent = has ? 'gesetzt' : 'fehlt';
+  b.append(x);
+}
+async function finnhubPush(){
+  if (!finnhubSyncOn() || finnhubBusy) return;
+  const key = finnhubKey();
+  if (!key) return;
+  finnhubBusy = true;
+  try {
+    const old = await githubRequest('GET', null, finnhubPath());
+    await githubGuard(old);
+    const text = await encryptText(JSON.stringify({key, updated: finnhubTs()}), githubConfig.password);
+    const body = {message: 'Update', content: to64(text), branch: githubConfig.branch};
+    if (old && old.sha) body.sha = old.sha;
+    await githubRequest('PUT', body, finnhubPath());
+  } finally { finnhubBusy = false; }
+}
+async function finnhubRemoveRemote(){
+  if (!githubConfig.enabled || finnhubBusy) return;
+  finnhubBusy = true;
+  try {
+    const old = await githubRequest('GET', null, finnhubPath());
+    if (old && old.sha) await githubRequest('DELETE', {message: 'Update', sha: old.sha, branch: githubConfig.branch}, finnhubPath());
+  } finally { finnhubBusy = false; }
+}
+// force = beim Einrichten des GitHub-Sync: Key immer übernehmen, auch wenn "Beim Start laden" aus ist
+async function finnhubSync(force = false){
+  if (!finnhubSyncOn() || finnhubBusy || (!force && !githubConfig.autoPull)) return '';
+  finnhubBusy = true;
+  let pushAfter = false, changed = false, msg = '';
+  try {
+    const r = await githubRequest('GET', null, finnhubPath());
+    const local = finnhubKey();
+    if (!r) pushAfter = !!local;
+    else {
+      const raw = JSON.parse(from64(r.content));
+      if (!raw || raw.format !== ENC_FORMAT) throw Error('Die Finnhub-Datei in GitHub ist nicht verschlüsselt und wird ignoriert.');
+      const o = JSON.parse(await decryptText(raw, githubConfig.password));
+      const rk = typeof o.key === 'string' ? o.key.trim() : '', rts = Number(o.updated) || 0;
+      if (rk && rk !== local) {
+        if (!local || rts > finnhubTs()) { finnhubSetLocal(rk, rts || Date.now()); changed = true; }
+        else pushAfter = true;
+      }
+    }
+  } catch(e){ msg = e.message; console.warn('Finnhub-Sync', e); }
+  finally { finnhubBusy = false; }
+  if (pushAfter) { try { await finnhubPush(); } catch(e){ msg = e.message; } }
+  updateFinnhubBtn();
+  if (changed) refreshAllStocks(true);
+  return msg;
+}
+function finnhubMsg(t, c = ''){ $('finnhubMessage').textContent = t; $('finnhubMessage').className = c; }
+function finnhubInfoText(){
+  if (finnhubSyncOn()) return 'Der Key wird zusätzlich verschlüsselt (AES-256) in einer eigenen Datei im GitHub-Repository gespeichert und beim Einrichten des GitHub-Sync auf neuen Geräten automatisch übernommen.';
+  if (githubConfig.enabled) return 'GitHub-Sync ist aktiv, aber ohne Verschlüsselung und Passwort. Der Key bleibt deshalb nur lokal in diesem Browser. Für die GitHub-Ablage die Verschlüsselung in den GitHub-Einstellungen aktivieren.';
+  return 'Ohne GitHub-Sync bleibt der Key nur lokal in diesem Browser. Mit aktivem, verschlüsseltem GitHub-Sync wird er automatisch verschlüsselt abgelegt.';
+}
+$('finnhubBtn').onclick = () => {
+  $('finnhubInput').value = finnhubKey();
+  $('finnhubInfo').textContent = finnhubInfoText();
+  finnhubMsg('');
+  $('finnhubDlg').showModal();
+};
+$('finnhubCancelBtn').onclick = () => $('finnhubDlg').close();
+$('finnhubTestBtn').onclick = async () => {
+  const key = $('finnhubInput').value.trim();
+  if (!key) { finnhubMsg('Bitte zuerst einen Key eintragen.', 'error'); return; }
+  finnhubMsg('Key wird geprüft…');
+  try {
+    const q = await fetchFinnhubQuote('AAPL', key);
+    finnhubMsg('Key funktioniert. Test: AAPL ' + formatStockPrice(q.price, q.currency) + '.', 'ok');
+  } catch(e){
+    finnhubMsg(/401|403/.test(e.message) ? 'Der Key wurde von Finnhub abgelehnt.' : /429/.test(e.message) ? 'Finnhub-Limit erreicht, bitte später erneut testen.' : 'Test fehlgeschlagen: ' + e.message, 'error');
+  }
+};
+$('finnhubSaveBtn').onclick = async () => {
+  const key = $('finnhubInput').value.trim();
+  if (!key) { finnhubMsg('Bitte einen Key eintragen oder „Key entfernen“ nutzen.', 'error'); return; }
+  if (!/^[A-Za-z0-9]{8,64}$/.test(key)) { finnhubMsg('Der Key sieht ungültig aus (nur Buchstaben und Ziffern erwartet).', 'error'); return; }
+  const changed = key !== finnhubKey();
+  if (changed) finnhubSetLocal(key);
+  updateFinnhubBtn();
+  if (finnhubSyncOn()) {
+    finnhubMsg('Key wird in GitHub gespeichert…');
+    try { await finnhubPush(); }
+    catch(e){ finnhubMsg('Lokal gespeichert, aber GitHub-Ablage fehlgeschlagen: ' + e.message, 'error'); refreshAllStocks(true); return; }
+  }
+  $('finnhubDlg').close();
+  refreshAllStocks(true);
+};
+$('finnhubRemoveBtn').onclick = async () => {
+  if (!confirm('Finnhub-Key entfernen?' + (githubConfig.enabled ? ' Die verschlüsselte Datei in GitHub wird ebenfalls gelöscht.' : ''))) return;
+  finnhubSetLocal('');
+  updateFinnhubBtn();
+  try { await finnhubRemoveRemote(); }
+  catch(e){ finnhubMsg('Lokal entfernt, aber die GitHub-Datei konnte nicht gelöscht werden: ' + e.message, 'error'); refreshAllStocks(true); return; }
+  $('finnhubDlg').close();
+  refreshAllStocks(true);
+};
+updateFinnhubBtn();
 
 /* ---- Notizen & Dateianhänge ---- */
 const NOTES_KEY = 'startseite-notizen';
@@ -2413,7 +2651,7 @@ setInterval(() => {
   render();
   try { await settingsDel('file'); await settingsDel('enabled'); } catch(e){}
   await syncInit();
-  if (githubConfig.enabled && githubConfig.autoPull) { await githubPull(); notesPull(); }
+  if (githubConfig.enabled && githubConfig.autoPull) { await githubPull(); notesPull(); await finnhubSync(); }
 })();
 </script>
 <span class="ver-tag" aria-hidden="true"></span>
