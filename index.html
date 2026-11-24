@@ -27,7 +27,7 @@
 })();
 </script>
 <style>
-:root{--app-version:"v1.3.18";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
+:root{--app-version:"v1.3.21";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;--pos:#4ade80;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -384,10 +384,12 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     <div class="row" style="justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <button type="button" class="link-btn" id="notesUploadBtn">Datei anfügen…</button>
+        <button type="button" class="link-btn" id="notesShareBtn">Datei teilen…</button>
         <button type="button" class="link-btn" id="notesSyncAttachmentsBtn">GitHub-Sync</button>
         <button type="button" class="link-btn danger" id="notesClearAttachmentsBtn">Alle Dateien löschen</button>
       </div>
       <input type="file" id="notesFileIn" hidden>
+      <input type="file" id="notesShareIn" hidden>
       <button type="button" class="primary" id="notesClose">Schließen</button>
     </div>
   </form>
@@ -2039,6 +2041,12 @@ function updateNotesUiState(){
   if (clearAllBtn) {
     clearAllBtn.disabled = !on;
   }
+  const shareBtn = $('notesShareBtn');
+  if (shareBtn) {
+    const ok = githubConfig.enabled && !!(githubConfig.token || '').trim();
+    shareBtn.disabled = !ok;
+    shareBtn.title = ok ? 'Datei öffentlich bereitstellen und Download-Link ohne Passwort erzeugen (max. 50 MB, unverschlüsselt)' : 'Deaktiviert: Bitte zuerst GitHub-Sync mit Token einrichten';
+  }
 }
 
 function notesIdleStatus(){
@@ -2200,8 +2208,8 @@ async function previewAttachmentFromGitHub(fileRef) {
   }
 }
 
-async function deleteAttachmentFromGitHub(githubPath) {
-  if (!notesSyncOn() || !githubPath) return;
+async function deleteAttachmentFromGitHub(githubPath, shared) {
+  if (!githubPath || !(shared || notesSyncOn())) return;
   try {
     const existing = await githubRequest('GET', null, githubPath);
     if (existing && existing.sha) {
@@ -2263,7 +2271,7 @@ function renderNotesAttachments(){
     const item = document.createElement('div');
     item.className = 'att-item';
 
-    const canPreview = typeof f.size === 'number' && f.size <= PREVIEW_MAX_BYTES && isTextLikeFile(f.name, f.type);
+    const canPreview = !f.shared && typeof f.size === 'number' && f.size <= PREVIEW_MAX_BYTES && isTextLikeFile(f.name, f.type);
     const info = canPreview ? document.createElement('button') : document.createElement('div');
     info.className = 'att-info' + (canPreview ? ' clickable' : '');
     if (canPreview) {
@@ -2280,7 +2288,8 @@ function renderNotesAttachments(){
 
     const nm = document.createElement('span');
     nm.className = 'att-name';
-    nm.textContent = '📎 ' + f.name;
+    nm.textContent = (f.shared ? '🔗 ' : '📎 ') + f.name;
+    if (f.shared) nm.title = 'Öffentlich geteilt';
     info.appendChild(nm);
 
     if (f.size) {
@@ -2300,7 +2309,9 @@ function renderNotesAttachments(){
     dl.title = f.name + ' herunterladen und entschlüsseln';
     dl.setAttribute('aria-label', f.name + ' herunterladen');
     dl.onclick = async () => {
-      if (f.githubPath) {
+      if (f.shared) {
+        if (f.shareUrl) window.open(f.shareUrl, '_blank', 'noopener');
+      } else if (f.githubPath) {
         await downloadAttachmentFromGitHub(f);
       } else if (f.data) {
         triggerFileDownload(f);
@@ -2326,8 +2337,8 @@ function renderNotesAttachments(){
       notesDirty = true;
       setNotesStatus('Lösche Datei von GitHub…');
       
-      if (fileRef && fileRef.githubPath && notesSyncOn()) {
-        await deleteAttachmentFromGitHub(fileRef.githubPath);
+      if (fileRef && fileRef.githubPath && (fileRef.shared || notesSyncOn())) {
+        await deleteAttachmentFromGitHub(fileRef.githubPath, !!fileRef.shared);
       }
       
       if (notesSyncOn() && githubConfig.autoPush) {
@@ -2339,6 +2350,17 @@ function renderNotesAttachments(){
       }
     };
 
+    if (f.shared) {
+      dl.title = f.name + ' über den öffentlichen Link öffnen';
+      const cp = document.createElement('button');
+      cp.type = 'button';
+      cp.className = 'att-dl';
+      cp.textContent = '⧉';
+      cp.title = 'Freigabe-Link kopieren';
+      cp.setAttribute('aria-label', 'Link zu ' + f.name + ' kopieren');
+      cp.onclick = () => copyShareLink(f.shareUrl);
+      actions.append(cp);
+    }
     actions.append(dl, del);
     item.append(info, actions);
     box.appendChild(item);
@@ -2457,14 +2479,14 @@ if (clearAttachmentsBtn) {
         }
       }
 
-      notes.files = [];
+      notes.files = (notes.files || []).filter(f => f.shared);
       notes.updated = Date.now();
       saveNotesLocal();
       renderNotesAttachments();
       
       notesDirty = true;
       notesPush();
-      setNotesStatus('Alle Dateien und verwaisten Dateien wurden erfolgreich gelöscht.');
+      setNotesStatus('Alle verschlüsselten Dateien wurden gelöscht. Geteilte Dateien bleiben bestehen und lassen sich einzeln mit ✕ entfernen.');
     } catch(e) {
       setNotesStatus('Fehler beim Bereinigen des Ordners: ' + e.message, true);
     }
@@ -2583,6 +2605,143 @@ if (fileInElem) {
   };
 }
 
+/* ---- Dateien teilen (öffentlicher Link ohne Passwort) ---- */
+function shareSafeName(name){
+  const n = String(name || 'datei').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[._]+/, '').slice(-80);
+  return n || 'datei';
+}
+function shareRandomId(){
+  const a = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(a, x => x.toString(16).padStart(2, '0')).join('');
+}
+function shareBasePath(){ return githubConfig.path.trim().replace(/[^/]*$/, '') + 'share/'; }
+function shareUrlFor(path){
+  const p = githubConfig.repo.trim().split('/');
+  return 'https://raw.githubusercontent.com/' + encodeURIComponent(p[0]) + '/' + encodeURIComponent(p[1]) + '/' + githubConfig.branch.trim().split('/').map(encodeURIComponent).join('/') + '/' + path.split('/').map(encodeURIComponent).join('/');
+}
+async function githubRepoIsPublic(){
+  const p = githubConfig.repo.trim().split('/');
+  if (p.length !== 2 || !p[0] || !p[1]) throw Error('Repository muss Benutzer/Repository entsprechen.');
+  const r = await fetch('https://api.github.com/repos/' + encodeURIComponent(p[0]) + '/' + encodeURIComponent(p[1]), {headers: githubHeaders()});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw Error(d.message || 'Repository konnte nicht geprüft werden (HTTP ' + r.status + ').');
+  return d.private === false;
+}
+let sharesRestored = false;
+async function verifyShareLink(url, size){
+  let last = 'unbekannter Fehler';
+  for (let i = 0; i < 6; i++) {
+    try {
+      const r = await fetch(url + '?_=' + Date.now(), {method: 'HEAD', cache: 'no-store'});
+      if (r.ok) {
+        const len = parseInt(r.headers.get('content-length') || '', 10);
+        if (!isNaN(len) && size && len !== size && !r.headers.get('content-encoding')) { last = 'Größe weicht ab (' + len + ' statt ' + size + ' Byte)'; }
+        else return {ok: true};
+      } else last = 'HTTP ' + r.status;
+    } catch(e) { last = e.message || 'Netzwerkfehler'; }
+    await new Promise(res => setTimeout(res, 1500));
+  }
+  return {ok: false, reason: last};
+}
+async function sharesRestore(){
+  if (sharesRestored || !githubConfig.enabled || !(githubConfig.token || '').trim()) return;
+  sharesRestored = true;
+  try {
+    const dir = await githubRequest('GET', null, shareBasePath().replace(/\/$/, ''));
+    if (!Array.isArray(dir)) return;
+    let added = 0;
+    for (const d of dir.slice(0, 50)) {
+      if (d.type !== 'dir') continue;
+      if ((notes.files || []).some(f => f.shared && f.githubPath && f.githubPath.startsWith(d.path + '/'))) continue;
+      const files = await githubRequest('GET', null, d.path);
+      if (!Array.isArray(files)) continue;
+      for (const it of files) {
+        if (it.type !== 'file') continue;
+        notes.files.push({name: it.name, size: it.size || 0, type: 'application/octet-stream', githubPath: it.path, shared: true, shareUrl: shareUrlFor(it.path)});
+        added++;
+      }
+    }
+    if (added) {
+      notes.updated = Date.now();
+      saveNotesLocal();
+      renderNotesAttachments();
+      notesDirty = true;
+      notesPush();
+    }
+  } catch(e) { sharesRestored = false; }
+}
+async function copyShareLink(url){
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    setNotesStatus('Freigabe-Link kopiert.');
+  } catch(e) {
+    prompt('Freigabe-Link (zum Kopieren markieren):', url);
+  }
+}
+
+const shareBtnElem = $('notesShareBtn');
+if (shareBtnElem) {
+  shareBtnElem.onclick = () => {
+    if (!githubConfig.enabled || !(githubConfig.token || '').trim()) {
+      setNotesStatus('Zum Teilen bitte zuerst GitHub-Sync mit Token einrichten.', true);
+      return;
+    }
+    const inp = $('notesShareIn');
+    if (inp) inp.click();
+  };
+}
+const shareInElem = $('notesShareIn');
+if (shareInElem) {
+  shareInElem.onchange = async () => {
+    const f = shareInElem.files[0];
+    shareInElem.value = '';
+    if (!f) return;
+    if (f.size > MAX_FILE_SIZE) {
+      setNotesStatus('Fehler: Die Datei ist zu groß (' + formatBytes(f.size) + '). Maximal erlaubt sind 50 MB.', true);
+      return;
+    }
+    if (!confirm('„' + f.name + '“ wird UNVERSCHLÜSSELT im GitHub-Repository abgelegt. Jeder, der den Link kennt, kann die Datei ohne Passwort herunterladen. Fortfahren?')) return;
+    shareBtnElem.disabled = true;
+    try {
+      setNotesStatus('Prüfe Repository…');
+      if (!(await githubRepoIsPublic())) {
+        throw Error('Das Repository ist privat. Ein Link ohne Passwort funktioniert nur bei einem öffentlichen Repository.');
+      }
+      setNotesStatus('Lade Datei zum Teilen hoch…');
+      const dataUrl = await new Promise((res, rej) => {
+        const rd = new FileReader();
+        rd.onload = () => res(rd.result);
+        rd.onerror = () => rej(new Error('Datei konnte nicht gelesen werden.'));
+        rd.readAsDataURL(f);
+      });
+      const b64 = String(dataUrl).split(',')[1] || '';
+      const path = shareBasePath() + shareRandomId() + '/' + shareSafeName(f.name);
+      const put = await githubRequest('PUT', {message: 'Update', content: b64, branch: githubConfig.branch}, path);
+      const realPath = (put && put.content && put.content.path) || path;
+      const url = shareUrlFor(realPath);
+      notes.files.push({name: f.name, size: f.size, type: f.type || 'application/octet-stream', githubPath: realPath, shared: true, shareUrl: url});
+      notes.updated = Date.now();
+      saveNotesLocal();
+      renderNotesAttachments();
+      notesDirty = true;
+      notesPush();
+      setNotesStatus('Datei hochgeladen, prüfe den Link…');
+      const chk = await verifyShareLink(url, f.size);
+      if (chk.ok) {
+        setNotesStatus('✓ Neuer Freigabe-Link erzeugt, geprüft und kopiert.');
+      } else {
+        setNotesStatus('Datei hochgeladen, aber der Link konnte nicht bestätigt werden (' + chk.reason + '). Bitte in einer Minute erneut testen, bevor du ihn weitergibst.', true);
+      }
+      try { await navigator.clipboard.writeText(url); } catch(e) {}
+    } catch(e) {
+      setNotesStatus('Teilen fehlgeschlagen: ' + e.message, true);
+    } finally {
+      updateNotesUiState();
+    }
+  };
+}
+
 $('filePreviewCopyBtn').onclick = async () => {
   try {
     await navigator.clipboard.writeText($('filePreviewContent').textContent || '');
@@ -2614,6 +2773,7 @@ if (notesBtnElem) {
     if (dlg) dlg.showModal();
     if (notesTextElem) notesTextElem.focus();
     notesPull();
+    sharesRestore();
   };
 }
 
