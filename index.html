@@ -27,7 +27,7 @@
 })();
 </script>
 <style>
-:root{--app-version:"v1.3.21";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
+:root{--app-version:"v1.3.24";--bg:#e9edf1;--panel:#fff;--ink:#1d2733;--muted:#66727f;--line:#d3dae1;--accent:#1f6f8b;--danger:#b3372f;--pos:#16803a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161c23;--panel:#212a33;--ink:#e6ebf0;--muted:#93a0ad;--line:#33404c;--accent:#5bb4d1;--danger:#e0766e;--pos:#4ade80;color-scheme:dark}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -52,6 +52,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .att-info.clickable{background:none;border:0;padding:0;text-align:left;color:var(--accent)}
 .att-info.clickable:hover .att-name{text-decoration:underline}
 .att-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-lock{display:inline-flex;flex:none;align-items:center}
+.att-lock svg{width:20px;height:20px;display:block}
+.att-lock.closed{color:#16803a}
+.att-lock.open{color:#e8590c}
+.att-lock.open svg{filter:drop-shadow(0 0 .5px currentColor)}
 .att-size{color:var(--muted);font-size:.82rem;flex-shrink:0}
 .att-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .att-dl{background:none;border:1px solid var(--line);width:26px;height:26px;border-radius:6px;color:var(--accent);font-size:.9rem;display:grid;place-items:center;flex-shrink:0}
@@ -383,8 +388,8 @@ label input, label select{display:block;width:100%;margin-top:4px;padding:10px;f
     <p id="notesStatus"></p>
     <div class="row" style="justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button type="button" class="link-btn" id="notesUploadBtn">Datei anfügen…</button>
-        <button type="button" class="link-btn" id="notesShareBtn">Datei teilen…</button>
+        <button type="button" class="link-btn" id="notesUploadBtn">Datei verschlüsselt hochladen…</button>
+        <button type="button" class="link-btn" id="notesShareBtn">Datei unverschlüsselt teilen…</button>
         <button type="button" class="link-btn" id="notesSyncAttachmentsBtn">GitHub-Sync</button>
         <button type="button" class="link-btn danger" id="notesClearAttachmentsBtn">Alle Dateien löschen</button>
       </div>
@@ -2289,8 +2294,17 @@ function renderNotesAttachments(){
     const nm = document.createElement('span');
     nm.className = 'att-name';
     nm.textContent = (f.shared ? '🔗 ' : '📎 ') + f.name;
-    if (f.shared) nm.title = 'Öffentlich geteilt';
     info.appendChild(nm);
+
+    const lock = document.createElement('span');
+    lock.className = 'att-lock ' + (f.shared ? 'open' : 'closed');
+    lock.title = f.shared ? 'Unverschlüsselt, öffentlich geteilt' : 'Verschlüsselt';
+    lock.setAttribute('role', 'img');
+    lock.setAttribute('aria-label', lock.title);
+    const svgHead = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+    lock.innerHTML = svgHead + '<rect x="4" y="11" width="16" height="10" rx="2" fill="currentColor" fill-opacity=".22"/>' +
+      (f.shared ? '<path d="M8 11V7a4 4 0 0 1 7.6-1.7"/>' : '<path d="M8 11V7a4 4 0 0 1 8 0v4"/>') + '</svg>';
+    info.appendChild(lock);
 
     if (f.size) {
       const sz = document.createElement('span');
@@ -2310,7 +2324,7 @@ function renderNotesAttachments(){
     dl.setAttribute('aria-label', f.name + ' herunterladen');
     dl.onclick = async () => {
       if (f.shared) {
-        if (f.shareUrl) window.open(f.shareUrl, '_blank', 'noopener');
+        await downloadSharedFile(f);
       } else if (f.githubPath) {
         await downloadAttachmentFromGitHub(f);
       } else if (f.data) {
@@ -2669,6 +2683,28 @@ async function sharesRestore(){
       notesPush();
     }
   } catch(e) { sharesRestored = false; }
+}
+async function downloadSharedFile(f){
+  if (!f.shareUrl) return;
+  const name = String(f.name || 'datei').split(/[\\/]/).pop() || 'datei';
+  try {
+    setNotesStatus('Lade Datei herunter…');
+    const r = await fetch(f.shareUrl, {cache: 'no-store'});
+    if (!r.ok) throw Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setNotesStatus('Datei heruntergeladen: ' + name);
+  } catch(e) {
+    window.open(f.shareUrl, '_blank', 'noopener');
+    setNotesStatus('Direkter Download nicht möglich, Datei wird im Browser geöffnet.', true);
+  }
 }
 async function copyShareLink(url){
   if (!url) return;
